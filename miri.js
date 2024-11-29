@@ -18,7 +18,7 @@ app.head('/health', (req, res) => {
 
 
 app.use(cors({
-    origin: 'https://localhost:5173', 
+    origin: 'https://estravagant-frond-msn8.vercel.app/', 
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']

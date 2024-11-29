@@ -17,6 +17,6 @@
     "web-push": "^3.6.7"
   },
   "scripts": {
-    "start:dev": "nodemon miri.js"
+    "start": "nodemon miri.js"
   }
 }

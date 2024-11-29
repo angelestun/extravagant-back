@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const webPush = require('web-push');
 const app = express();
-
+require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
@@ -24,6 +24,10 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+app.get('/', (req, res) => {
+    res.send('¡Aplicación en ejecución!');
+  });
+
 app.use(express.json());
 
 app.head('/health', (req, res) => {
@@ -33,16 +37,24 @@ app.head('/health', (req, res) => {
 let pushSubscriptions = new Map();
 
 const vapidKeys = {
-    publicKey: 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
-    subject: 'mailto:xxxxx@gmail.com'
-};
 
+
+    publicKey: 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
+    privateKey: 'VGjo2Rp_3sdhhC2iE5a3YUdUDJzcMtGRGyi2Un2jV-I',
+    subject: 'mailto:xxxxx@gmail.com'
+
+};
 
 webPush.setVapidDetails(
     vapidKeys.subject,
     vapidKeys.publicKey,
     vapidKeys.privateKey
 );
+
+const dotenv = require('dotenv');
+dotenv.config();  
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+console.log(vapidPrivateKey);  
 
 const checkVapidConfiguration = () => {
     const isConfigured = webPush.vapidDetails !== null;
@@ -94,15 +106,47 @@ const promiseQuery = (sql, values) => {
     });
 };
 
+const connection = mysql.createConnection({
+    host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
+    port: 3306,
+    host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
+    user: process.env.DB_USER || ' beyokj9jopaygfbw9j8i',
+    password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
+    database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
+    port: process.env.DB_PORT || 3306,
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
 
-const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '12345',
-    database: 'zapateria2',
-};
+function handleDisconnect() {
+    connection = mysql.createConnection({
+        host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
+        user: process.env.DB_USER || 'u0kizdyccrms8r6s',
+        password: process.env.DB_PASSWORD || 'YQI83MMgssVRJ05JjaVy',
+        database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
+        port: process.env.DB_PORT || 3306,
+        ssl: {
+            rejectUnauthorized: false
+        }
+    });
 
-const connection = mysql.createConnection(dbConfig);
+    connection.connect((err) => {
+        if(err) {
+            console.error('Error al reconectar:', err);
+            setTimeout(handleDisconnect, 2000);
+        }
+    });
+
+    connection.on('error', (err) => {
+        console.error('DB error', err);
+        if(err.code === 'PROTOCOL_CONNECTION_LOST') {
+            handleDisconnect();
+        } else {
+            throw err;
+        }
+    });
+}
 
 // Middleware de Conectividad - 
 const connectivityMiddleware = (req, res, next) => {
@@ -456,14 +500,6 @@ app.post('/api/sync', async (req, res) => {
     }
 });
 
-// Conexión a la base de datos
-connection.connect((err) => {
-    if (err) {
-        console.error("Error de conexión: ", err);
-    } else {
-        console.log("Conexión a la base de datos realizada!");
-    }
-});
 
 // Función para ejecutar consultas
 const queryDatabase = (query, params) => {
@@ -2465,42 +2501,23 @@ app.post('/api/coupons/move-to-used', async (req, res) => {
         });
     }
 });
-
-// Endpoint para mover el cupón
 app.post('/api/coupons/move-to-used', async (req, res) => {
     const { couponCode, userId, orderId } = req.body;
 
-    console.log('Recibida solicitud para mover cupón:', {
-        couponCode,
-        userId,
-        orderId
-    });
-
     if (!couponCode || !userId || !orderId) {
-        console.error('Faltan datos requeridos:', { couponCode, userId, orderId });
         return res.status(400).json({
             success: false,
             message: 'Faltan datos requeridos'
         });
     }
 
-    let connection;
     try {
-        connection = await mysql.createConnection({
-            host: 'localhost',
-            user: 'root',
-            password: '',
-            database: 'zapateria2'
-        });
-
         await connection.beginTransaction();
 
-        const [cuponesEnUso] = await connection.query(
+        const [cuponesEnUso] = await promiseQuery(
             'SELECT * FROM cupones_en_uso WHERE Codigo_Cupon = ? AND ID_Usuario = ?',
             [couponCode, userId]
         );
-
-        console.log('Resultado búsqueda en cupones_en_uso:', cuponesEnUso);
 
         if (!cuponesEnUso || cuponesEnUso.length === 0) {
             throw new Error('Cupón no encontrado en cupones_en_uso');
@@ -2508,69 +2525,41 @@ app.post('/api/coupons/move-to-used', async (req, res) => {
 
         const cuponEnUso = cuponesEnUso[0];
 
-        const [cuponesUsados] = await connection.query(
+        const [cuponesUsados] = await promiseQuery(
             'SELECT * FROM cupones_usados WHERE ID_Cupon = ? AND ID_Usuario = ?',
             [cuponEnUso.ID_Cupon, userId]
         );
 
-        console.log('Verificación en cupones_usados:', cuponesUsados);
-
         if (cuponesUsados && cuponesUsados.length > 0) {
-            console.log('Cupón ya está en cupones_usados, solo limpiando cupones_en_uso');
-            await connection.query(
+            await promiseQuery(
                 'DELETE FROM cupones_en_uso WHERE ID_CuponEnUso = ?',
                 [cuponEnUso.ID_CuponEnUso]
             );
         } else {
-            console.log('Insertando en cupones_usados:', {
-                ID_Cupon: cuponEnUso.ID_Cupon,
-                ID_Usuario: userId,
-                ID_Pedido: orderId
-            });
-
-            await connection.query(
+            await promiseQuery(
                 'INSERT INTO cupones_usados (ID_Cupon, ID_Usuario, ID_Pedido) VALUES (?, ?, ?)',
                 [cuponEnUso.ID_Cupon, userId, orderId]
             );
 
-            console.log('Eliminando de cupones_en_uso');
-            await connection.query(
+            await promiseQuery(
                 'DELETE FROM cupones_en_uso WHERE ID_CuponEnUso = ?',
                 [cuponEnUso.ID_CuponEnUso]
             );
         }
 
         await connection.commit();
-        console.log('Transacción completada exitosamente');
-
         res.json({
             success: true,
             message: 'Cupón movido exitosamente'
         });
 
     } catch (error) {
-        console.error('Error detallado al mover cupón:', error);
-        if (connection) {
-            try {
-                await connection.rollback();
-            } catch (rollbackError) {
-                console.error('Error en rollback:', rollbackError);
-            }
-        }
+        await connection.rollback();
         res.status(500).json({
             success: false,
             message: 'Error al mover cupón',
-            error: error.message,
-            details: error.stack
+            error: error.message
         });
-    } finally {
-        if (connection) {
-            try {
-                await connection.end();
-            } catch (endError) {
-                console.error('Error al cerrar conexión:', endError);
-            }
-        }
     }
 });
 
@@ -3146,6 +3135,7 @@ app.get('/api/vendor/:userId/coupons-usage', async (req, res) => {
 //#endregion
 
 
-app.listen(3000, () => {
-    console.log("Servidor prendido en el puerto 3000");
+const port = process.env.PORT || 8080;
+app.listen(port, () => {
+    console.log(`Servidor corriendo en puerto ${port}`);
 });

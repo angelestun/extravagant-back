@@ -590,7 +590,7 @@ app.post('/login', (req, res) => {
 
 // GET - Obtener todos los usuarios
 app.get('/usuarios', (req, res) => {
-    const query = 'SELECT * FROM Usuario';
+    const query = 'SELECT * FROM usuario';
 
     connection.query(query, (err, results) => {
         if (err) {
@@ -605,7 +605,7 @@ app.get('/usuarios', (req, res) => {
 // GET - Obtener un usuario por ID
 app.get('/usuarios/:id', (req, res) => {
     const { id } = req.params;
-    const query = 'SELECT * FROM Usuario WHERE ID_Usuario = ?';
+    const query = 'SELECT * FROM usuario WHERE ID_Usuario = ?';
 
     connection.query(query, [id], (err, results) => {
         if (err) {
@@ -624,7 +624,7 @@ app.get('/usuarios/:id', (req, res) => {
 app.put('/usuarios/:id', (req, res) => {
     const { id } = req.params;
     const { Nombre, Apellido, Correo, Contraseña } = req.body;
-    const query = 'UPDATE Usuario SET Nombre = ?, Apellido = ?, Correo = ?, Contraseña = ? WHERE ID_Usuario = ?';
+    const query = 'UPDATE usuario SET Nombre = ?, Apellido = ?, Correo = ?, Contraseña = ? WHERE ID_Usuario = ?';
 
     connection.query(query, [Nombre, Apellido, Correo, Contraseña, id], (err, results) => {
         if (err) {
@@ -644,7 +644,7 @@ app.delete('/usuarios/:id', (req, res) => {
     const { id } = req.params;
 
  
-    const deleteOrdersQuery = 'DELETE FROM Pedidos WHERE ID_Usuario = ?';
+    const deleteOrdersQuery = 'DELETE FROM pedidos WHERE ID_Usuario = ?';
     connection.query(deleteOrdersQuery, [id], (err) => {
         if (err) {
             console.error("Error al eliminar pedidos: ", err);
@@ -652,7 +652,7 @@ app.delete('/usuarios/:id', (req, res) => {
             return;
         }
 
-        const deleteUserQuery = 'DELETE FROM Usuario WHERE ID_Usuario = ?';
+        const deleteUserQuery = 'DELETE FROM usuario WHERE ID_Usuario = ?';
         connection.query(deleteUserQuery, [id], (err, results) => {
             if (err) {
                 console.error("Error al eliminar usuario: ", err);
@@ -2058,7 +2058,7 @@ app.put('/carrito-sin-oferta/:userId', async (req, res) => {
             });
         }
 
-        res.status(200).json({ message: "Productos sin oferta actualizados." });
+        res.status(200).json({ message: "productos sin oferta actualizados." });
     } catch (error) {
         console.error("Error al actualizar productos sin oferta: ", error);
         res.status(500).json({ error: "Error al actualizar productos sin oferta." });

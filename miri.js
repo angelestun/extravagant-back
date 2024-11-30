@@ -18,15 +18,11 @@ app.head('/health', (req, res) => {
 
 
 app.use(cors({
-    origin: 'https://estravagant-frond-msn8.vercel.app/', 
+    origin: ['https://estravagant-frond-msn8.vercel.app/', 'http://localhost:5173'],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
 }));
 
-app.get('/', (req, res) => {
-    res.send('¡Aplicación en ejecución!');
-  });
 
 app.use(express.json());
 
@@ -106,19 +102,18 @@ const promiseQuery = (sql, values) => {
     });
 };
 
-const connection = mysql.createConnection({
+const dbConfig = {
     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-    port: 3306,
-    host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-    user: process.env.DB_USER || ' beyokj9jopaygfbw9j8i',
+    port: process.env.DB_PORT || 3306,
+    user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
     database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
-    port: process.env.DB_PORT || 3306,
     ssl: {
         rejectUnauthorized: false
     }
-});
+};
 
+const connection = mysql.createConnection(dbConfig);
 function handleDisconnect() {
     connection = mysql.createConnection({
         host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',

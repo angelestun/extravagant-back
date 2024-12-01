@@ -18,9 +18,9 @@ app.head('/health', (req, res) => {
 
 
 app.use(cors({
-    origin: ['https://extravagant-style.vercel.app/', 'http://localhost:5173'],
+    origin: ['https://extravagant-style.vercel.app', 'http://localhost:5173'], 
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']
 }));
 
 
@@ -1675,18 +1675,34 @@ app.post('/createtienda', upload.single('logo'), (req, res) => {
 // GET - Obtener todas las tiendas
 app.get('/tienda/:id', (req, res) => {
     const { id } = req.params;
-    const query = 'SELECT * FROM tienda WHERE ID_Usuario = ?';
     
-    connection.query(query, [id], (err, results) => {
+    const queryByUser = 'SELECT * FROM tienda WHERE ID_Usuario = ?';
+    connection.query(queryByUser, [id], (err, userResults) => {
         if (err) {
             console.error("Error al obtener tiendas: ", err);
             return res.status(500).json({ error: "Error al obtener tiendas" });
         }
-        console.log('err', results);
         
-        res.status(200).json(results);
+        if (userResults.length > 0) {
+            return res.status(200).json(userResults);
+        }
+        
+        const queryByStore = 'SELECT * FROM tienda WHERE ID_Tienda = ?';
+        connection.query(queryByStore, [id], (err, storeResults) => {
+            if (err) {
+                console.error("Error al obtener tienda: ", err);
+                return res.status(500).json({ error: "Error al obtener tienda" });
+            }
+            
+            if (storeResults.length === 0) {
+                return res.status(404).json({ error: "Tienda no encontrada" });
+            }
+            
+            res.status(200).json(storeResults[0]);
+        });
     });
 });
+
 
 // GET - Obtener una tienda por ID
 app.get('/tienda/:id', (req, res) => {
@@ -1702,6 +1718,26 @@ app.get('/tienda/:id', (req, res) => {
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
         res.status(200).json(results[0]);
+    });
+});
+
+
+
+app.head('/tienda/:id', (req, res) => {
+    const { id } = req.params;
+    
+    const query = 'SELECT 1 FROM tienda WHERE ID_Usuario = ? OR ID_Tienda = ? LIMIT 1';
+    connection.query(query, [id, id], (err, results) => {
+        if (err) {
+            console.error("Error en verificación HEAD: ", err);
+            return res.status(500).end();
+        }
+        
+        if (results.length === 0) {
+            return res.status(404).end();
+        }
+        
+        res.status(200).end();
     });
 });
 

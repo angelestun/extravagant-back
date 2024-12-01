@@ -1687,7 +1687,7 @@ app.get('/tienda/:id', (req, res) => {
 
 
 // GET - Obtener una tienda por ID
-app.get('/tienda/:id', (req, res) => {
+app.get('/tiendas/:id', (req, res) => {
     const { id } = req.params;
     const query = 'SELECT * FROM tienda WHERE ID_Tienda = ?';
 

@@ -102,46 +102,33 @@ const promiseQuery = (sql, values) => {
     });
 };
 
-const dbConfig = {
+let connection;
+
+const handleDisconnect = () => {
+  connection = mysql.createPool({
+    connectionLimit: 10,
     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-    port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
     database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
+    port: process.env.DB_PORT || 3306,
     ssl: {
-        rejectUnauthorized: false
+      rejectUnauthorized: false
+    },
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    waitForConnections: true
+  });
+
+  connection.on('error', (err) => {
+    console.error('DB error', err);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      handleDisconnect();
     }
+  });
 };
 
-const connection = mysql.createConnection(dbConfig);
-function handleDisconnect() {
-    connection = mysql.createConnection({
-        host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-        user: process.env.DB_USER || 'u0kizdyccrms8r6s',
-        password: process.env.DB_PASSWORD || 'YQI83MMgssVRJ05JjaVy',
-        database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
-        port: process.env.DB_PORT || 3306,
-        ssl: {
-            rejectUnauthorized: false
-        }
-    });
 
-    connection.connect((err) => {
-        if(err) {
-            console.error('Error al reconectar:', err);
-            setTimeout(handleDisconnect, 2000);
-        }
-    });
-
-    connection.on('error', (err) => {
-        console.error('DB error', err);
-        if(err.code === 'PROTOCOL_CONNECTION_LOST') {
-            handleDisconnect();
-        } else {
-            throw err;
-        }
-    });
-}
 
 // Middleware de Conectividad - 
 const connectivityMiddleware = (req, res, next) => {

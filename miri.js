@@ -20,7 +20,9 @@ app.head('/health', (req, res) => {
 app.use(cors({
     origin: ['https://extravagant-style.vercel.app', 'http://localhost:5173'], 
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+
 }));
 
 
@@ -119,15 +121,9 @@ const handleDisconnect = () => {
     keepAliveInitialDelay: 10000,
     waitForConnections: true
   });
-
-  connection.on('error', (err) => {
-    console.error('DB error', err);
-    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      handleDisconnect();
-    }
-  });
 };
 
+handleDisconnect();
 
 
 // Middleware de Conectividad - 
@@ -499,34 +495,33 @@ const queryDatabase = (query, params) => {
 //#region CRUD USUARIOS
 
 app.post('/registro', async (req, res) => {
+    console.log('Received registration request:', req.body);
     const { Nombre, Apellido, Correo, Contraseña, Rol } = req.body;
-
-    
     let ID_Rol = Rol === "vendedor" ? 2 : 1;
 
-  
-    const query = 'INSERT INTO usuario (Nombre, Apellido, Correo, Contraseña, ID_Rol) VALUES (?, ?, ?, ?, ?)';
-    
-    connection.query(query, [Nombre, Apellido, Correo, Contraseña, ID_Rol], (err, results) => {
-        if (err) {
-            console.error("Error al registrar usuario: ", err);
-            return res.status(500).json({ error: err.message || "Error al registrar usuario" });
-        }
+    try {
+        const query = 'INSERT INTO usuario (Nombre, Apellido, Correo, Contraseña, ID_Rol) VALUES (?, ?, ?, ?, ?)';
+        const results = await new Promise((resolve, reject) => {
+            connection.query(query, [Nombre, Apellido, Correo, Contraseña, ID_Rol], (err, results) => {
+                if (err) reject(err);
+                resolve(results);
+            });
+        });
 
-        const ID_Usuario = results.insertId; 
-
-      
         res.json({
             message: "Usuario registrado con éxito",
             user: {
-                ID_Usuario,
+                ID_Usuario: results.insertId,
                 Nombre,
                 Apellido,
                 Correo,
                 ID_Rol
             }
         });
-    });
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.post('/login', (req, res) => {

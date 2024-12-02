@@ -1636,44 +1636,50 @@ const upload = multer({
   });
   
   app.post('/createtienda', upload.single('logo'), async (req, res) => {
+    console.log('Creating store with data:', {
+        body: req.body,
+        file: req.file
+    });
+
     try {
-      console.log('Request body:', req.body);
-      console.log('Request file:', req.file);
-      
-      const { NombreTienda, Descripcion, userId } = req.body;
-      const logo = req.file ? req.file.filename : null;
-  
-      if (!NombreTienda || !userId) {
-        return res.status(400).json({ error: "Nombre de la tienda y userId son requeridos" });
-      }
-  
-      const query = `
-        INSERT INTO tienda 
-        (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) 
-        VALUES (?, ?, ?, NOW(), ?, 0)
-      `;
-      
-      const result = await promiseQuery(query, [
-        NombreTienda, 
-        Descripcion || '', 
-        logo, 
-        parseInt(userId)
-      ]);
-  
-      res.status(201).json({
-        success: true,
-        message: "Tienda registrada con éxito",
-        tiendaId: result.insertId
-      });
-  
+        const { NombreTienda, Descripcion, userId } = req.body;
+        const logo = req.file ? req.file.originalname : null;
+
+        if (!NombreTienda) {
+            return res.status(400).json({ error: "Nombre de la tienda es requerido" });
+        }
+
+        const checkUser = await promiseQuery('SELECT ID_Usuario FROM usuario WHERE ID_Usuario = ?', [userId]);
+        if (checkUser.length === 0) {
+            return res.status(400).json({ error: "Usuario no encontrado" });
+        }
+
+        const insertQuery = `
+            INSERT INTO tienda 
+            (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) 
+            VALUES (?, ?, ?, NOW(), ?, 0)
+        `;
+
+        const params = [NombreTienda, Descripcion || '', logo, userId];
+        console.log('Executing query:', { query: insertQuery, params });
+
+        const result = await promiseQuery(insertQuery, params);
+        console.log('Store created:', result);
+
+        res.status(201).json({
+            success: true,
+            message: "Tienda registrada con éxito",
+            tiendaId: result.insertId
+        });
+
     } catch (error) {
-      console.error('Error creating store:', error);
-      res.status(500).json({
-        error: "Error al crear tienda",
-        details: error.message
-      });
+        console.error('Store creation error:', error);
+        res.status(500).json({
+            error: "Error al crear tienda",
+            details: error.message
+        });
     }
-  });
+});
 
 // GET - Obtener todas las tiendas
 app.get('/tienda/:id', (req, res) => {

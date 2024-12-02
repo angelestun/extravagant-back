@@ -1638,21 +1638,30 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // POST - Registrar una nueva tienda
-app.post('/createtienda', upload.single('logo'), (req, res) => {
+app.post('/createtienda', upload.single('logo'), async (req, res) => {
     const { NombreTienda, Descripcion, userId } = req.body;
     const logo = req.file ? req.file.originalname : null;
-    if (!NombreTienda || !logo || userId ==0) {
-        return res.status(400).json({ error: "Nombre de la tienda y logo son requeridos." });
+
+    console.log('Create tienda request:', { NombreTienda, Descripcion, userId, logo });
+
+    if (!NombreTienda || !logo || !userId) {
+        return res.status(400).json({ error: "Nombre de la tienda, logo y userId son requeridos" });
     }
 
-    const query = 'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)';
-    connection.query(query, [NombreTienda, Descripcion, logo, userId], (err, results) => {
-        if (err) {
-            console.error("Error al registrar tienda: ", err);
-            return res.status(500).json({ error: "Error al registrar tienda" });
-        }
-        res.status(201).json({ message: "Tienda registrada con éxito" });
-    });
+    try {
+        const result = await promiseQuery(
+            'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, 0)',
+            [NombreTienda, Descripcion, logo, userId]
+        );
+        
+        res.status(201).json({ 
+            message: "Tienda registrada con éxito",
+            tiendaId: result.insertId
+        });
+    } catch (err) {
+        console.error("Error al registrar tienda:", err);
+        res.status(500).json({ error: "Error al registrar tienda" });
+    }
 });
 
 // GET - Obtener todas las tiendas
@@ -1688,42 +1697,26 @@ app.get('/tienda/:id', (req, res) => {
 
 
 // GET - Obtener una tienda por ID
-app.get('/tiendas/:id', (req, res) => {
-    const { id } = req.params;
-    const query = 'SELECT * FROM tienda WHERE ID_Tienda = ?';
-
-    connection.query(query, [id], (err, results) => {
-        if (err) {
-            console.error("Error al obtener tienda: ", err);
-            return res.status(500).json({ error: "Error al obtener tienda" });
-        } 
-        if (results.length === 0) {
-            return res.status(404).json({ error: "Tienda no encontrada" });
-        }
-        res.status(200).json(results[0]);
-    });
-});
-
-
-
-app.head('/tienda/:id', (req, res) => {
+app.get('/tienda/:id', async (req, res) => {
     const { id } = req.params;
     
-    const query = 'SELECT 1 FROM tienda WHERE ID_Usuario = ? OR ID_Tienda = ? LIMIT 1';
-    connection.query(query, [id, id], (err, results) => {
-        if (err) {
-            console.error("Error en verificación HEAD: ", err);
-            return res.status(500).end();
+    try {
+        const results = await promiseQuery('SELECT * FROM tienda WHERE ID_Usuario = ?', [id]);
+        if (results.length > 0) {
+            return res.status(200).json(results);
         }
         
-        if (results.length === 0) {
-            return res.status(404).end();
+        const storeResult = await promiseQuery('SELECT * FROM tienda WHERE ID_Tienda = ?', [id]);
+        if (storeResult.length === 0) {
+            return res.status(404).json({ error: "Tienda no encontrada" });
         }
         
-        res.status(200).end();
-    });
+        res.status(200).json(storeResult[0]);
+    } catch (err) {
+        console.error("Error al obtener tienda:", err);
+        res.status(500).json({ error: "Error al obtener tienda" });
+    }
 });
-
 
 
 // PUT - Actualizar una tienda existente

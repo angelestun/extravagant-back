@@ -1620,49 +1620,60 @@ app.get('/cupones/aprobados', (req, res) => {
 
 //#region CRUD Tienda
 
-const uploadDir = './uploads/';
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir); 
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname); 
-    }
-});
-
-const upload = multer({ storage: storage });
-
-// POST - Registrar una nueva tienda
-app.post('/createtienda', upload.single('logo'), async (req, res) => {
-    const { NombreTienda, Descripcion, userId } = req.body;
-    const logo = req.file ? req.file.originalname : null;
-
-    console.log('Create tienda request:', { NombreTienda, Descripcion, userId, logo });
-
-    if (!NombreTienda || !logo || !userId) {
-        return res.status(400).json({ error: "Nombre de la tienda, logo y userId son requeridos" });
-    }
-
+const upload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
+      }
+    })
+  });
+  
+  app.post('/createtienda', upload.single('logo'), async (req, res) => {
     try {
-        const result = await promiseQuery(
-            'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, 0)',
-            [NombreTienda, Descripcion, logo, userId]
-        );
-        
-        res.status(201).json({ 
-            message: "Tienda registrada con éxito",
-            tiendaId: result.insertId
-        });
-    } catch (err) {
-        console.error("Error al registrar tienda:", err);
-        res.status(500).json({ error: "Error al registrar tienda" });
+      console.log('Request body:', req.body);
+      console.log('Request file:', req.file);
+      
+      const { NombreTienda, Descripcion, userId } = req.body;
+      const logo = req.file ? req.file.filename : null;
+  
+      if (!NombreTienda || !userId) {
+        return res.status(400).json({ error: "Nombre de la tienda y userId son requeridos" });
+      }
+  
+      const query = `
+        INSERT INTO tienda 
+        (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) 
+        VALUES (?, ?, ?, NOW(), ?, 0)
+      `;
+      
+      const result = await promiseQuery(query, [
+        NombreTienda, 
+        Descripcion || '', 
+        logo, 
+        parseInt(userId)
+      ]);
+  
+      res.status(201).json({
+        success: true,
+        message: "Tienda registrada con éxito",
+        tiendaId: result.insertId
+      });
+  
+    } catch (error) {
+      console.error('Error creating store:', error);
+      res.status(500).json({
+        error: "Error al crear tienda",
+        details: error.message
+      });
     }
-});
+  });
 
 // GET - Obtener todas las tiendas
 app.get('/tienda/:id', (req, res) => {

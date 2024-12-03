@@ -10,11 +10,47 @@ require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
-const productUploadDir = path.join(__dirname, 'uploads', 'products');
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.head('/health', (req, res) => {
     res.status(200).end();
 });
+
+
+const uploadsDir = path.join(__dirname, 'uploads');
+const productsDir = path.join(uploadsDir, 'products');
+const logosDir = path.join(uploadsDir, 'logos');
+
+// Crear directorios si no existen
+[uploadsDir, productsDir, logosDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+});
+
+// Configuración única de Multer
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        // Determinar el directorio basado en el tipo de archivo
+        let uploadPath = uploadsDir;
+        if (req.path.includes('/productos')) {
+            uploadPath = productsDir;
+        } else if (req.path.includes('/tienda')) {
+            uploadPath = logosDir;
+        }
+        cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+        // Generar un nombre único para evitar colisiones
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ storage: storage });
+
+// Configurar rutas estáticas
+app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads/products', express.static(productsDir));
+app.use('/uploads/logos', express.static(logosDir));
 
 
 app.use(cors({
@@ -32,6 +68,7 @@ app.use(express.json());
 app.head('/health', (req, res) => {
     res.status(200).end();
 });
+
 
 let pushSubscriptions = new Map();
 
@@ -125,6 +162,7 @@ const handleDisconnect = () => {
 };
 
 handleDisconnect();
+
 
 
 // Middleware de Conectividad - 
@@ -647,17 +685,7 @@ app.delete('/usuarios/:id', (req, res) => {
 });
 
 //#region CRUD PRODUCTOS
-const productStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, productUploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname);
-    }
-});
 
-const uploadProduct = multer({ storage: productStorage });
-app.use('/uploads/products', express.static(productUploadDir));
 
 const productsByStore = new Map();
 let notificationInterval = null;
@@ -708,27 +736,136 @@ const sendGroupedNotification = async () => {
 };
 
 // Endpoint para registrar productos
-app.post('/productos', (req, res) => {
-    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca } = req.body;
-    const query = 'INSERT INTO producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+app.post('/productos', upload.single('Imagen'), (req, res) => {
+    console.log('Datos recibidos:', req.body); // Para debugging
+    
+    const {
+        Nombre_Producto,
+        Descripcion,
+        Precio,
+        Stock,
+        Talla,
+        Color,
+        Categoria,
+        ID_Tienda,
+        ID_Usuario,
+        Marca
+    } = req.body;
 
-    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca], (err, results) => {
+    // Verificar que los campos requeridos no sean null o undefined
+    if (!Nombre_Producto || !Precio || !Stock || !ID_Usuario || !ID_Tienda) {
+        return res.status(400).json({
+            error: "Faltan campos requeridos",
+            receivedData: req.body
+        });
+    }
+
+    const Imagen = req.file ? req.file.filename : null;
+
+    const query = `
+        INSERT INTO producto (
+            Nombre_Producto,
+            Descripcion,
+            Precio,
+            Stock,
+            Talla,
+            Color,
+            Imagen,
+            Categoria,
+            ID_Tienda,
+            ID_Usuario,
+            Marca
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
+        Nombre_Producto,
+        Descripcion,
+        Precio,
+        Stock,
+        Talla,
+        Color,
+        Imagen,
+        Categoria,
+        ID_Tienda,
+        ID_Usuario,
+        Marca
+    ];
+
+    connection.query(query, values, (err, results) => {
         if (err) {
             console.error("Error al crear producto: ", err);
-            res.status(500).json({ error: "Error al crear producto" });
-            return;
+            return res.status(500).json({ 
+                error: "Error al crear producto",
+                details: err.message,
+                sqlMessage: err.sqlMessage
+            });
         }
-        res.status(201).json({ message: "Producto creado con éxito" });
+        res.status(201).json({ 
+            message: "Producto creado con éxito",
+            id: results.insertId,
+            imagen: Imagen
+        });
     });
 });
 
+// Actualizar Producto
+app.put('/productos/:id', upload.single('Imagen'), (req, res) => {
+    const { id } = req.params;
+    const {
+        Nombre_Producto,
+        Descripcion,
+        Precio,
+        Stock,
+        Talla,
+        Color,
+        Categoria,
+        Marca
+    } = req.body;
 
-// Limpiar el intervalo cuando se apague el servidor
-process.on('SIGINT', () => {
-    if (notificationInterval) {
-        clearInterval(notificationInterval);
-    }
-    process.exit();
+    let Imagen = req.file ? req.file.filename : undefined;
+    
+    // Si no se envió una nueva imagen, no actualizamos el campo imagen
+    let query = `
+        UPDATE producto 
+        SET Nombre_Producto = ?, 
+            Descripcion = ?, 
+            Precio = ?, 
+            Stock = ?, 
+            Talla = ?, 
+            Color = ?, 
+            ${Imagen ? 'Imagen = ?,' : ''} 
+            Categoria = ?, 
+            Marca = ? 
+        WHERE ID_Producto = ?
+    `;
+
+    const values = [
+        Nombre_Producto,
+        Descripcion,
+        Precio,
+        Stock,
+        Talla,
+        Color,
+        ...(Imagen ? [Imagen] : []),
+        Categoria,
+        Marca,
+        id
+    ];
+
+    connection.query(query, values, (err, results) => {
+        if (err) {
+            console.error("Error al actualizar producto: ", err);
+            return res.status(500).json({ 
+                error: "Error al actualizar producto",
+                details: err.message
+            });
+        }
+        res.status(200).json({ 
+            message: "Producto actualizado con éxito",
+            imagen: Imagen
+        });
+    });
 });
 
 //GET - Obtener productos por tienda
@@ -1600,20 +1737,7 @@ app.get('/cupones/aprobados', (req, res) => {
 
 //#region CRUD Tienda
 
-const upload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const dir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-      }
-    })
-  });
+
   
 // Server code
 app.post('/createtienda', upload.single('logo'), (req, res) => {

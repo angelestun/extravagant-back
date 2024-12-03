@@ -51,6 +51,8 @@ const upload = multer({ storage: storage });
 app.use('/uploads', express.static(uploadsDir));
 app.use('/uploads/products', express.static(productsDir));
 app.use('/uploads/logos', express.static(logosDir));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/products', express.static(path.join(__dirname, 'uploads/products')));
 
 
 app.use(cors({

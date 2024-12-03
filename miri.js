@@ -1373,45 +1373,84 @@ setInterval(() => {
 //#region CRUD Cupones
 
 // POST - Registrar un nuevo cupón
+//#region CRUD Cupones
+
+// POST - Registrar un nuevo cupon
 app.post('/createcupones', (req, res) => {
-    const { Descripcion, Codigo, Fecha_Fin, Fecha_Inicio, Descuento, Activo, FechaCreacion, Estado, Motivo_Rechazo, ID_Usuario, ID_Tienda } = req.body; 
+    const { 
+        Descripcion, 
+        Codigo, 
+        Fecha_Fin, 
+        Fecha_Inicio, 
+        Descuento,
+        Estado,
+        ID_Usuario,
+        ID_Tienda,
+        Motivo_Rechazo
+    } = req.body;
+    
+    // La columna FechaCreacion se actualizará automáticamente por el DEFAULT CURRENT_TIMESTAMP
+    const query = `
+        INSERT INTO cupones (
+            ID_Usuario,
+            ID_Tienda,
+            Descripcion, 
+            Codigo, 
+            Fecha_Fin, 
+            Fecha_Inicio, 
+            Descuento,
+            Estado,
+            Motivo_Rechazo,
+            Activo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `;
 
-    if (!ID_Usuario) {
-        return res.status(400).json({ error: "ID de usuario es requerido" });
-    }
-
-    const queryVerificarUsuario = 'SELECT * FROM usuario WHERE ID_Usuario = ?';
-    connection.query(queryVerificarUsuario, [ID_Usuario], (err, results) => {
-        if (err) {
-            console.error("Error al verificar usuario: ", err.message);
-            return res.status(500).json({ error: "Error al verificar usuario" });
-        }
-
-        if (results.length === 0) {
-            return res.status(400).json({ error: "ID de usuario no válido" });
-        }
-
-        const query = 'INSERT INTO cupones (Descripcion, Codigo, Fecha_Fin, Fecha_Inicio, Descuento, Activo, FechaCreacion, Estado, Motivo_Rechazo, ID_Usuario, ID_Tienda) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        
-
-        connection.query(query, [Descripcion, Codigo, Fecha_Fin, Fecha_Inicio, Descuento, Activo, FechaCreacion, Estado, Motivo_Rechazo, ID_Usuario, ID_Tienda], (err, results) => {
+    connection.query(
+        query, 
+        [
+            ID_Usuario,
+            ID_Tienda,
+            Descripcion, 
+            Codigo, 
+            Fecha_Fin, 
+            Fecha_Inicio, 
+            Descuento,
+            Estado || 0,
+            Motivo_Rechazo,
+            0
+        ], 
+        (err, results) => {
             if (err) {
-                console.error("Error al registrar cupón: ", err.message);
-                return res.status(500).json({ error: "Error al registrar cupón" });
+                console.error("Error al registrar cupón: ", err);
+                res.status(500).json({ error: "Error al registrar cupón" });
+                return;
             }
             res.status(201).json({ message: "Cupón registrado con éxito" });
-        });
+        }
+    );
+});
+
+// GET - Obtener todos los cupones de un vendedor
+app.get('/cupones/vendedor/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const query = 'SELECT * FROM cupones WHERE ID_Usuario = ?';
+
+    connection.query(query, [userId], (err, results) => {
+        if (err) {
+            console.error("Error al obtener cupones del vendedor: ", err);
+            res.status(500).json({ error: "Error al obtener cupones" });
+            return;
+        }
+        res.status(200).json(results);
     });
 });
 
 
 
-// GET - Obtener todos los cupones de un vendedor
-app.get('/cupones/vendedor/:id', (req, res) => {
-    const { id } = req.params;
-    const query = 'SELECT * FROM cupones WHERE ID_Usuario = ?';
+app.get('/cupones', (req, res) => {
+    const query = 'SELECT * FROM cupones';
 
-    connection.query(query, [id], (err, results) => {
+    connection.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener Cupones: ", err);
             res.status(500).json({ error: "Error al obtener cupones" });
@@ -1420,7 +1459,6 @@ app.get('/cupones/vendedor/:id', (req, res) => {
         res.status(200).json(results);
     });
 });
-
 // PUT - Actualizar un cupon existente
 app.put('/cupones/:id', (req, res) => {
     const { id } = req.params;

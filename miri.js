@@ -7,6 +7,24 @@ const fs = require('fs');
 const webPush = require('web-push');
 const app = express();
 require('dotenv').config();
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'your_cloud_name',
+    api_key: process.env.CLOUDINARY_API_KEY || 'your_api_key',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 'your_api_secret'
+  });
+  
+  const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'extravagant-style',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif'],
+      transformation: [{ width: 500, height: 500, crop: 'limit' }]
+    }
+  });
+  const uploadToCloudinary = multer({ storage: storage });
 
 app.use(cors());
 app.use(express.json());
@@ -708,16 +726,16 @@ const sendGroupedNotification = async () => {
 };
 
 // Endpoint para registrar productos
-app.post('/productos', uploadProduct.single('Imagen'), async (req, res) => {
-    console.log(req.body);
-    console.log(req.file);
-
+app.post('/productos', uploadToCloudinary.single('Imagen'), async (req, res) => {
     const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria, Marca } = req.body;
     const ID_Tienda = req.body.ID_Tienda;
     const ID_Usuario = req.body.ID_Usuario;
-    const imagen = req.file ? req.file.originalname : null;
+    const imagen = req.file ? req.file.path : null;
 
     if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda || !ID_Usuario || !imagen || !Marca) {
+        if (imagen) {
+            await cloudinary.uploader.destroy(req.file.filename);
+        }
         return res.status(400).json({ error: "Todos los campos son requeridos." });
     }
 
@@ -736,26 +754,17 @@ app.post('/productos', uploadProduct.single('Imagen'), async (req, res) => {
             ID_Tienda
         });
 
-        if (!notificationInterval) {
-            notificationInterval = setInterval(() => {
-                if (productsByStore.size > 0) {
-                    sendGroupedNotification();
-                }
-            }, 30 * 60 * 1000); 
-        }
-
-        res.status(201).json({ message: "Producto agregado con éxito" });
+        res.status(201).json({ 
+            message: "Producto agregado con éxito",
+            imagen_url: imagen
+        });
     } catch (err) {
+        if (imagen) {
+            await cloudinary.uploader.destroy(req.file.filename);
+        }
         console.error("Error al agregar producto: ", err);
         res.status(500).json({ error: "Error al agregar producto" });
     }
-});
-
-process.on('SIGINT', () => {
-    if (notificationInterval) {
-        clearInterval(notificationInterval);
-    }
-    process.exit();
 });
 
 // Limpiar el intervalo cuando se apague el servidor
@@ -789,51 +798,66 @@ app.get('/productos/tienda', (req, res) => {
 
 
 // PUT - Actualizar Producto
-app.put('/productos/:id', uploadProduct.single('Imagen'), (req, res) => {
+app.put('/productos/:id', uploadToCloudinary.single('Imagen'), async (req, res) => {
     const { id } = req.params;
     const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria } = req.body;
-    const ID_Tienda = req.body.ID_Tienda; 
-    const imagenPath = req.file ? req.file.originalname : null;
+    const ID_Tienda = req.body.ID_Tienda;
 
-    if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda) {
-        return res.status(400).json({ error: "Todos los campos son requeridos." });
-    }
-
-    const query = 'UPDATE Producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, ID_Tienda = ? WHERE ID_Producto = ?';
-    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, imagenPath, Categoria, ID_Tienda, id], (err, results) => {
-        if (err) {
-            console.error("Error al actualizar producto: ", err);
-            return res.status(500).json({ error: "Error al actualizar producto" });
-        } else if (results.affectedRows === 0) {
+    try {
+        const oldProduct = await promiseQuery('SELECT Imagen FROM Producto WHERE ID_Producto = ?', [id]);
+        
+        if (oldProduct.length === 0) {
             return res.status(404).json({ error: "Producto no encontrado" });
         }
-        res.status(200).json({ message: "Producto actualizado con éxito" });
-    });
+
+        const imagen = req.file ? req.file.path : oldProduct[0].Imagen;
+
+        const query = 'UPDATE Producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, ID_Tienda = ? WHERE ID_Producto = ?';
+        await promiseQuery(query, [
+            Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, 
+            imagen, Categoria, ID_Tienda, id
+        ]);
+
+        if (req.file && oldProduct[0].Imagen) {
+            const oldImagePublicId = oldProduct[0].Imagen.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(oldImagePublicId);
+        }
+
+        res.status(200).json({ 
+            message: "Producto actualizado con éxito",
+            imagen_url: imagen
+        });
+    } catch (err) {
+        if (req.file) {
+            await cloudinary.uploader.destroy(req.file.filename);
+        }
+        console.error("Error al actualizar producto: ", err);
+        res.status(500).json({ error: "Error al actualizar producto" });
+    }
 });
 
 // Eliminar Producto
-app.delete('/productos/:id', (req, res) => {
+app.delete('/productos/:id', async (req, res) => {
     const { id } = req.params;
 
-    const checkQuery = 'SELECT * FROM Producto WHERE ID_Producto = ?';
-    connection.query(checkQuery, [id], (checkErr, checkResults) => {
-        if (checkErr) {
-            console.error("Error al verificar producto: ", checkErr);
-            return res.status(500).json({ error: "Error al verificar producto" });
-        }
-        if (checkResults.length === 0) {
+    try {
+        const product = await promiseQuery('SELECT Imagen FROM Producto WHERE ID_Producto = ?', [id]);
+        
+        if (product.length === 0) {
             return res.status(404).json({ error: "Producto no encontrado" });
         }
 
-        const query = 'DELETE FROM Producto WHERE ID_Producto = ?';
-        connection.query(query, [id], (err, results) => {
-            if (err) {
-                console.error("Error al eliminar producto: ", err);
-                return res.status(500).json({ error: "Error al eliminar producto" });
-            }
-            res.status(200).json({ message: "Producto eliminado con éxito" });
-        });
-    });
+        if (product[0].Imagen) {
+            const publicId = product[0].Imagen.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(publicId);
+        }
+
+        await promiseQuery('DELETE FROM Producto WHERE ID_Producto = ?', [id]);
+        res.status(200).json({ message: "Producto eliminado con éxito" });
+    } catch (err) {
+        console.error("Error al eliminar producto: ", err);
+        res.status(500).json({ error: "Error al eliminar producto" });
+    }
 });
 
 
@@ -1636,40 +1660,36 @@ const upload = multer({
   });
   
 // Server code
-app.post('/createtienda', upload.single('logo'), (req, res) => {
+app.post('/createtienda', uploadToCloudinary.single('logo'), async (req, res) => {
     const { NombreTienda, Descripcion, userId } = req.body;
-    const logo = req.file ? req.file.originalname : null;
+    const logo = req.file ? req.file.path : null;
 
     if (!NombreTienda || !userId) {
-        console.log('Missing required fields:', { NombreTienda, userId });
+        if (logo) {
+            await cloudinary.uploader.destroy(req.file.filename);
+        }
         return res.status(400).json({ error: "Nombre de la tienda y userId son requeridos" });
     }
 
-    // Log the data before DB operation 
-    console.log('Attempting to create store:', {
-        NombreTienda,
-        Descripcion,
-        userId,
-        logo
-    });
+    try {
+        const query = 'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)';
+        const results = await promiseQuery(query, [NombreTienda, Descripcion, logo, parseInt(userId)]);
 
-    connection.query(
-        'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)',
-        [NombreTienda, Descripcion, logo, parseInt(userId)],
-        (err, results) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ 
-                    error: "Error al registrar tienda",
-                    details: err.message
-                });
-            }
-            res.status(201).json({
-                message: "Tienda registrada con éxito",
-                tiendaId: results.insertId
-            });
+        res.status(201).json({
+            message: "Tienda registrada con éxito",
+            tiendaId: results.insertId,
+            logo_url: logo
+        });
+    } catch (error) {
+        if (logo) {
+            await cloudinary.uploader.destroy(req.file.filename);
         }
-    );
+        console.error('Error al registrar tienda:', error);
+        res.status(500).json({ 
+            error: "Error al registrar tienda",
+            details: error.message
+        });
+    }
 });
 
 // Client component
@@ -1770,54 +1790,69 @@ app.get('/tienda/:id', async (req, res) => {
 
 
 // PUT - Actualizar una tienda existente
-app.put('/tienda/:id', upload.single('logo'), (req, res) => {
+app.put('/tienda/:id', uploadToCloudinary.single('logo'), async (req, res) => {
     const { id } = req.params;
     const { NombreTienda, Descripcion } = req.body;
 
-    connection.query('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id], (err, results) => {
-        if (err) {
-            console.error("Error al obtener tienda: ", err);
-            return res.status(500).json({ error: "Error al obtener tienda" });
-        }
-        if (results.length === 0) {
+    try {
+        const [oldStore] = await promiseQuery('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id]);
+        
+        if (!oldStore) {
+            if (req.file) {
+                await cloudinary.uploader.destroy(req.file.filename);
+            }
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
 
-        const currentLogo = results[0].logo;
-        const logo = req.file ? req.file.originalname : currentLogo; 
+        const logo = req.file ? req.file.path : oldStore.logo;
 
-        const query = 'UPDATE tienda SET NombreTienda = ?, Descripcion = ?, logo = ? WHERE ID_Tienda = ?';
-        connection.query(query, [NombreTienda, Descripcion, logo, id], (err, results) => {
-            if (err) {
-                console.error("Error al actualizar tienda: ", err);
-                return res.status(500).json({ error: "Error al actualizar tienda" });
-            }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ error: "Tienda no encontrada" });
-            }
-            res.status(200).json({ message: "Tienda actualizada con éxito" });
+        await promiseQuery(
+            'UPDATE tienda SET NombreTienda = ?, Descripcion = ?, logo = ? WHERE ID_Tienda = ?',
+            [NombreTienda, Descripcion, logo, id]
+        );
+
+        if (req.file && oldStore.logo) {
+            const oldLogoPublicId = oldStore.logo.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(oldLogoPublicId);
+        }
+
+        res.status(200).json({ 
+            message: "Tienda actualizada con éxito",
+            logo_url: logo 
         });
-    });
+    } catch (error) {
+        if (req.file) {
+            await cloudinary.uploader.destroy(req.file.filename);
+        }
+        console.error("Error al actualizar tienda:", error);
+        res.status(500).json({ error: "Error al actualizar tienda" });
+    }
 });
 
 
 // DELETE - Eliminar una tienda existente
-app.delete('/tienda/:id', (req, res) => {
+app.delete('/tienda/:id', async (req, res) => {
     const { id } = req.params;
-    const query = 'DELETE FROM tienda WHERE ID_Tienda = ?';
 
-    connection.query(query, [id], (err, results) => {
-        if (err) {
-            console.error("Error al eliminar tienda: ", err);
-            return res.status(500).json({ error: "Error al eliminar tienda" });
-        }
-        if (results.affectedRows === 0) {
+    try {
+        const [store] = await promiseQuery('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id]);
+        
+        if (!store) {
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
-        res.status(200).json({ message: "Tienda eliminada con éxito" });
-    });
-});
 
+        if (store.logo) {
+            const publicId = store.logo.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(publicId);
+        }
+
+        await promiseQuery('DELETE FROM tienda WHERE ID_Tienda = ?', [id]);
+        res.status(200).json({ message: "Tienda eliminada con éxito" });
+    } catch (error) {
+        console.error("Error al eliminar tienda:", error);
+        res.status(500).json({ error: "Error al eliminar tienda" });
+    }
+});
 
 // PARA LA VISTA ADMIN
 // GET - Obtener todas las tiendas

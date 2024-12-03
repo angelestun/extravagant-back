@@ -10,8 +10,8 @@ require('dotenv').config();
 
 app.use(cors());
 app.use(express.json());
-const productUploadDir = path.join(__dirname, 'uploads', 'products');
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 app.head('/health', (req, res) => {
     res.status(200).end();
 });
@@ -647,17 +647,7 @@ app.delete('/usuarios/:id', (req, res) => {
 });
 
 //#region CRUD PRODUCTOS
-const productStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, productUploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname);
-    }
-});
 
-const uploadProduct = multer({ storage: productStorage });
-app.use('/uploads/products', express.static(productUploadDir));
 
 const productsByStore = new Map();
 let notificationInterval = null;
@@ -708,41 +698,42 @@ const sendGroupedNotification = async () => {
 };
 
 // Endpoint para registrar productos
-app.post('/productos', uploadProduct.single('Imagen'), async (req, res) => {
-    console.log(req.body);
-    console.log(req.file);
-
-    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria, Marca } = req.body;
+app.post('/productos', upload.single('Imagen'), async (req, res) => {
+    const { 
+        Nombre_Producto, 
+        Descripcion, 
+        Precio, 
+        Stock, 
+        Talla, 
+        Color, 
+        Categoria, 
+        Marca 
+    } = req.body;
     const ID_Tienda = req.body.ID_Tienda;
     const ID_Usuario = req.body.ID_Usuario;
     const imagen = req.file ? req.file.originalname : null;
+    const imageBuffer = req.file ? req.file.buffer : null;
 
     if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda || !ID_Usuario || !imagen || !Marca) {
         return res.status(400).json({ error: "Todos los campos son requeridos." });
     }
 
     try {
-        const query = 'INSERT INTO Producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        const query = 'INSERT INTO Producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, ImagenData, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         await promiseQuery(query, [
-            Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, 
-            imagen, Categoria, ID_Tienda, ID_Usuario, Marca
+            Nombre_Producto, 
+            Descripcion, 
+            Precio, 
+            Stock, 
+            Talla, 
+            Color, 
+            imagen,
+            imageBuffer,
+            Categoria, 
+            ID_Tienda, 
+            ID_Usuario, 
+            Marca
         ]);
-
-        if (!productsByStore.has(ID_Tienda)) {
-            productsByStore.set(ID_Tienda, []);
-        }
-        productsByStore.get(ID_Tienda).push({
-            Nombre_Producto,
-            ID_Tienda
-        });
-
-        if (!notificationInterval) {
-            notificationInterval = setInterval(() => {
-                if (productsByStore.size > 0) {
-                    sendGroupedNotification();
-                }
-            }, 30 * 60 * 1000); 
-        }
 
         res.status(201).json({ message: "Producto agregado con éxito" });
     } catch (err) {
@@ -785,31 +776,102 @@ app.get('/productos/tienda', (req, res) => {
         res.status(200).json(results);
     });
 });
-
-
-
-// PUT - Actualizar Producto
-app.put('/productos/:id', uploadProduct.single('Imagen'), (req, res) => {
-    const { id } = req.params;
-    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria } = req.body;
-    const ID_Tienda = req.body.ID_Tienda; 
-    const imagenPath = req.file ? req.file.originalname : null;
-
-    if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda) {
-        return res.status(400).json({ error: "Todos los campos son requeridos." });
+//GET - obtener la imagen
+app.get('/productos/imagen/:id', async (req, res) => {
+    try {
+      const result = await promiseQuery(
+        'SELECT Imagen FROM Producto WHERE ID_Producto = ?',  
+        [req.params.id]
+      );
+      
+      if (result.length === 0 || !result[0].Imagen) {
+        return res.status(404).send('Imagen no encontrada');
+      }
+  
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(result[0].Imagen);  
+    } catch (error) {
+      console.error('Error al obtener imagen:', error);
+      res.status(500).send('Error al obtener imagen');
     }
-
-    const query = 'UPDATE Producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, ID_Tienda = ? WHERE ID_Producto = ?';
-    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, imagenPath, Categoria, ID_Tienda, id], (err, results) => {
-        if (err) {
-            console.error("Error al actualizar producto: ", err);
-            return res.status(500).json({ error: "Error al actualizar producto" });
-        } else if (results.affectedRows === 0) {
-            return res.status(404).json({ error: "Producto no encontrado" });
-        }
-        res.status(200).json({ message: "Producto actualizado con éxito" });
-    });
 });
+// PUT - Actualizar Producto
+app.put('/productos/:id', upload.single('Imagen'), async (req, res) => {
+    const { id } = req.params;
+    const { 
+      Nombre_Producto, 
+      Descripcion, 
+      Precio, 
+      Stock, 
+      Talla, 
+      Color, 
+      Categoria 
+    } = req.body;
+    const ID_Tienda = req.body.ID_Tienda;
+  
+    try {
+      let query;
+      let params;
+  
+      if (req.file) {
+        query = `
+          UPDATE Producto 
+          SET Nombre_Producto = ?, 
+              Descripcion = ?, 
+              Precio = ?, 
+              Stock = ?, 
+              Talla = ?, 
+              Color = ?, 
+              Imagen = ?,
+              Categoria = ?, 
+              ID_Tienda = ? 
+          WHERE ID_Producto = ?
+        `;
+        params = [
+          Nombre_Producto, 
+          Descripcion, 
+          Precio, 
+          Stock, 
+          Talla, 
+          Color, 
+          req.file.buffer,
+          Categoria, 
+          ID_Tienda, 
+          id
+        ];
+      } else {
+        query = `
+          UPDATE Producto 
+          SET Nombre_Producto = ?, 
+              Descripcion = ?, 
+              Precio = ?, 
+              Stock = ?, 
+              Talla = ?, 
+              Color = ?, 
+              Categoria = ?, 
+              ID_Tienda = ? 
+          WHERE ID_Producto = ?
+        `;
+        params = [
+          Nombre_Producto, 
+          Descripcion, 
+          Precio, 
+          Stock, 
+          Talla, 
+          Color, 
+          Categoria, 
+          ID_Tienda, 
+          id
+        ];
+      }
+  
+      await promiseQuery(query, params);
+      res.status(200).json({ message: "Producto actualizado con éxito" });
+    } catch (err) {
+      console.error("Error al actualizar producto: ", err);
+      res.status(500).json({ error: "Error al actualizar producto" });
+    }
+  });
 
 // Eliminar Producto
 app.delete('/productos/:id', (req, res) => {
@@ -1620,64 +1682,59 @@ app.get('/cupones/aprobados', (req, res) => {
 
 //#region CRUD Tienda
 
-const upload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const dir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-      }
-    })
-  });
-  
-  app.post('/createtienda', upload.single('logo'), async (req, res) => {
-    console.log('Creating store with data:', {
-        body: req.body,
-        file: req.file
+app.post('/createtienda', upload.single('logo'), (req, res) => {
+    const { NombreTienda, Descripcion, userId } = req.body;
+    const logo = req.file ? req.file.originalname : null;
+    const logoBuffer = req.file ? req.file.buffer : null;
+
+    if (!NombreTienda || !userId) {
+        console.log('Missing required fields:', { NombreTienda, userId });
+        return res.status(400).json({ error: "Nombre de la tienda y userId son requeridos" });
+    }
+
+    console.log('Attempting to create store:', {
+        NombreTienda,
+        Descripcion,
+        userId,
+        logo
     });
 
+    connection.query(
+        'INSERT INTO tienda (NombreTienda, Descripcion, logo, logoData, creacion, ID_Usuario) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+        [NombreTienda, Descripcion, logo, logoBuffer, parseInt(userId)],
+        (err, results) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ 
+                    error: "Error al registrar tienda",
+                    details: err.message
+                });
+            }
+            res.status(201).json({
+                message: "Tienda registrada con éxito",
+                tiendaId: results.insertId
+            });
+        }
+    );
+});
+
+// GET - Servir imagen de tienda
+app.get('/uploads/:filename', async (req, res) => {
     try {
-        const { NombreTienda, Descripcion, userId } = req.body;
-        const logo = req.file ? req.file.originalname : null;
-
-        if (!NombreTienda) {
-            return res.status(400).json({ error: "Nombre de la tienda es requerido" });
+        const result = await promiseQuery(
+            'SELECT logoData FROM tienda WHERE logo = ?',
+            [req.params.filename]
+        );
+        
+        if (!result.length || !result[0].logoData) {
+            return res.status(404).send('Logo no encontrado');
         }
 
-        const checkUser = await promiseQuery('SELECT ID_Usuario FROM usuario WHERE ID_Usuario = ?', [userId]);
-        if (checkUser.length === 0) {
-            return res.status(400).json({ error: "Usuario no encontrado" });
-        }
-
-        const insertQuery = `
-            INSERT INTO tienda 
-            (NombreTienda, Descripcion, logo, creacion, ID_Usuario, activo) 
-            VALUES (?, ?, ?, NOW(), ?, 0)
-        `;
-
-        const params = [NombreTienda, Descripcion || '', logo, userId];
-        console.log('Executing query:', { query: insertQuery, params });
-
-        const result = await promiseQuery(insertQuery, params);
-        console.log('Store created:', result);
-
-        res.status(201).json({
-            success: true,
-            message: "Tienda registrada con éxito",
-            tiendaId: result.insertId
-        });
-
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.send(result[0].logoData);
     } catch (error) {
-        console.error('Store creation error:', error);
-        res.status(500).json({
-            error: "Error al crear tienda",
-            details: error.message
-        });
+        console.error('Error al obtener logo:', error);
+        res.status(500).send('Error al obtener logo');
     }
 });
 
@@ -1741,7 +1798,7 @@ app.put('/tienda/:id', upload.single('logo'), (req, res) => {
     const { id } = req.params;
     const { NombreTienda, Descripcion } = req.body;
 
-    connection.query('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id], (err, results) => {
+    connection.query('SELECT logoData FROM tienda WHERE ID_Tienda = ?', [id], (err, results) => {
         if (err) {
             console.error("Error al obtener tienda: ", err);
             return res.status(500).json({ error: "Error al obtener tienda" });
@@ -1750,23 +1807,26 @@ app.put('/tienda/:id', upload.single('logo'), (req, res) => {
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
 
-        const currentLogo = results[0].logo;
-        const logo = req.file ? req.file.originalname : currentLogo; 
+        const currentLogoData = results[0].logoData;
+        const logoBuffer = req.file ? req.file.buffer : currentLogoData;
+        const logo = req.file ? req.file.originalname : results[0].logo;
 
-        const query = 'UPDATE tienda SET NombreTienda = ?, Descripcion = ?, logo = ? WHERE ID_Tienda = ?';
-        connection.query(query, [NombreTienda, Descripcion, logo, id], (err, results) => {
-            if (err) {
-                console.error("Error al actualizar tienda: ", err);
-                return res.status(500).json({ error: "Error al actualizar tienda" });
+        connection.query(
+            'UPDATE tienda SET NombreTienda = ?, Descripcion = ?, logo = ?, logoData = ? WHERE ID_Tienda = ?',
+            [NombreTienda, Descripcion, logo, logoBuffer, id],
+            (err, results) => {
+                if (err) {
+                    console.error("Error al actualizar tienda: ", err);
+                    return res.status(500).json({ error: "Error al actualizar tienda" });
+                }
+                if (results.affectedRows === 0) {
+                    return res.status(404).json({ error: "Tienda no encontrada" });
+                }
+                res.status(200).json({ message: "Tienda actualizada con éxito" });
             }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ error: "Tienda no encontrada" });
-            }
-            res.status(200).json({ message: "Tienda actualizada con éxito" });
-        });
+        );
     });
 });
-
 
 // DELETE - Eliminar una tienda existente
 app.delete('/tienda/:id', (req, res) => {

@@ -699,46 +699,37 @@ const sendGroupedNotification = async () => {
 
 // Endpoint para registrar productos
 app.post('/productos', upload.single('Imagen'), async (req, res) => {
-    const { 
-        Nombre_Producto, 
-        Descripcion, 
-        Precio, 
-        Stock, 
-        Talla, 
-        Color, 
-        Categoria, 
-        Marca 
-    } = req.body;
-    const ID_Tienda = req.body.ID_Tienda;
-    const ID_Usuario = req.body.ID_Usuario;
-    const imagen = req.file ? req.file.originalname : null;
-    const imageBuffer = req.file ? req.file.buffer : null;
-
-    if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda || !ID_Usuario || !imagen || !Marca) {
-        return res.status(400).json({ error: "Todos los campos son requeridos." });
-    }
-
     try {
+        const imageBuffer = req.file ? req.file.buffer : null;
+        
+        // Comprueba que ImagenData existe en la tabla
+        const columns = await promiseQuery('SHOW COLUMNS FROM Producto');
+        const hasImagenData = columns.some(col => col.Field === 'ImagenData');
+        
+        if (!hasImagenData) {
+            await promiseQuery('ALTER TABLE Producto ADD COLUMN ImagenData LONGBLOB');
+        }
+
         const query = 'INSERT INTO Producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, ImagenData, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         await promiseQuery(query, [
-            Nombre_Producto, 
-            Descripcion, 
-            Precio, 
-            Stock, 
-            Talla, 
-            Color, 
-            imagen,
+            req.body.Nombre_Producto,
+            req.body.Descripcion, 
+            req.body.Precio,
+            req.body.Stock,
+            req.body.Talla,
+            req.body.Color,
+            req.file ? req.file.originalname : null,
             imageBuffer,
-            Categoria, 
-            ID_Tienda, 
-            ID_Usuario, 
-            Marca
+            req.body.Categoria,
+            req.body.ID_Tienda,
+            req.body.ID_Usuario,
+            req.body.Marca
         ]);
-
+        
         res.status(201).json({ message: "Producto agregado con éxito" });
     } catch (err) {
-        console.error("Error al agregar producto: ", err);
-        res.status(500).json({ error: "Error al agregar producto" });
+        console.error("Error detallado:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -1683,32 +1674,25 @@ app.get('/cupones/aprobados', (req, res) => {
 //#region CRUD Tienda
 
 app.post('/createtienda', upload.single('logo'), (req, res) => {
+    console.log('Received request:', {
+        body: req.body,
+        file: req.file
+    });
+
     const { NombreTienda, Descripcion, userId } = req.body;
-    const logo = req.file ? req.file.originalname : null;
     const logoBuffer = req.file ? req.file.buffer : null;
 
     if (!NombreTienda || !userId) {
-        console.log('Missing required fields:', { NombreTienda, userId });
         return res.status(400).json({ error: "Nombre de la tienda y userId son requeridos" });
     }
 
-    console.log('Attempting to create store:', {
-        NombreTienda,
-        Descripcion,
-        userId,
-        logo
-    });
-
     connection.query(
         'INSERT INTO tienda (NombreTienda, Descripcion, logo, logoData, creacion, ID_Usuario) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
-        [NombreTienda, Descripcion, logo, logoBuffer, parseInt(userId)],
+        [NombreTienda, Descripcion, req.file ? req.file.originalname : null, logoBuffer, parseInt(userId)],
         (err, results) => {
             if (err) {
                 console.error('Database error:', err);
-                return res.status(500).json({ 
-                    error: "Error al registrar tienda",
-                    details: err.message
-                });
+                return res.status(500).json({ error: err.message });
             }
             res.status(201).json({
                 message: "Tienda registrada con éxito",
@@ -1717,7 +1701,6 @@ app.post('/createtienda', upload.single('logo'), (req, res) => {
         }
     );
 });
-
 // GET - Servir imagen de tienda
 app.get('/uploads/:filename', async (req, res) => {
     try {

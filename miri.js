@@ -708,55 +708,20 @@ const sendGroupedNotification = async () => {
 };
 
 // Endpoint para registrar productos
-app.post('/productos', uploadProduct.single('Imagen'), async (req, res) => {
-    console.log(req.body);
-    console.log(req.file);
+app.post('/productos', (req, res) => {
+    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca } = req.body;
+    const query = 'INSERT INTO producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria, Marca } = req.body;
-    const ID_Tienda = req.body.ID_Tienda;
-    const ID_Usuario = req.body.ID_Usuario;
-    const imagen = req.file ? req.file.originalname : null;
-
-    if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda || !ID_Usuario || !imagen || !Marca) {
-        return res.status(400).json({ error: "Todos los campos son requeridos." });
-    }
-
-    try {
-        const query = 'INSERT INTO Producto (Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        await promiseQuery(query, [
-            Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, 
-            imagen, Categoria, ID_Tienda, ID_Usuario, Marca
-        ]);
-
-        if (!productsByStore.has(ID_Tienda)) {
-            productsByStore.set(ID_Tienda, []);
+    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, ID_Tienda, ID_Usuario, Marca], (err, results) => {
+        if (err) {
+            console.error("Error al crear producto: ", err);
+            res.status(500).json({ error: "Error al crear producto" });
+            return;
         }
-        productsByStore.get(ID_Tienda).push({
-            Nombre_Producto,
-            ID_Tienda
-        });
-
-        if (!notificationInterval) {
-            notificationInterval = setInterval(() => {
-                if (productsByStore.size > 0) {
-                    sendGroupedNotification();
-                }
-            }, 30 * 60 * 1000); 
-        }
-
-        res.status(201).json({ message: "Producto agregado con éxito" });
-    } catch (err) {
-        console.error("Error al agregar producto: ", err);
-        res.status(500).json({ error: "Error al agregar producto" });
-    }
+        res.status(201).json({ message: "Producto creado con éxito" });
+    });
 });
 
-process.on('SIGINT', () => {
-    if (notificationInterval) {
-        clearInterval(notificationInterval);
-    }
-    process.exit();
-});
 
 // Limpiar el intervalo cuando se apague el servidor
 process.on('SIGINT', () => {
@@ -769,70 +734,47 @@ process.on('SIGINT', () => {
 //GET - Obtener productos por tienda
 app.get('/productos/tienda', (req, res) => {
     const { ID_Usuario, ID_Tienda } = req.query;
-    console.log("ID_Usuario:", ID_Usuario);
-    console.log("ID_Tienda:", ID_Tienda);
+    const query = 'SELECT * FROM producto WHERE ID_Usuario = ? AND ID_Tienda = ?';
 
-    if (!ID_Usuario || !ID_Tienda) {
-        return res.status(400).json({ error: "ID_Usuario y ID_Tienda son requeridos" });
-    }
-
-    const query = 'SELECT * FROM Producto WHERE ID_Usuario = ? AND ID_Tienda = ?';
     connection.query(query, [ID_Usuario, ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
-            return res.status(500).json({ error: "Error al obtener productos" });
+            res.status(500).json({ error: "Error al obtener productos" });
+            return;
         }
         res.status(200).json(results);
     });
 });
 
-
-
 // PUT - Actualizar Producto
-app.put('/productos/:id', uploadProduct.single('Imagen'), (req, res) => {
+app.put('/productos/:id', (req, res) => {
     const { id } = req.params;
-    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Categoria } = req.body;
-    const ID_Tienda = req.body.ID_Tienda; 
-    const imagenPath = req.file ? req.file.originalname : null;
+    const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, Marca } = req.body;
+    const query = 'UPDATE producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, Marca = ? WHERE ID_Producto = ?';
 
-    if (!Nombre_Producto || !Descripcion || !Precio || !Stock || !Talla || !Color || !Categoria || !ID_Tienda) {
-        return res.status(400).json({ error: "Todos los campos son requeridos." });
-    }
-
-    const query = 'UPDATE Producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, ID_Tienda = ? WHERE ID_Producto = ?';
-    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, imagenPath, Categoria, ID_Tienda, id], (err, results) => {
+    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, Marca, id], (err, results) => {
         if (err) {
             console.error("Error al actualizar producto: ", err);
-            return res.status(500).json({ error: "Error al actualizar producto" });
-        } else if (results.affectedRows === 0) {
-            return res.status(404).json({ error: "Producto no encontrado" });
+            res.status(500).json({ error: "Error al actualizar producto" });
+            return;
         }
         res.status(200).json({ message: "Producto actualizado con éxito" });
     });
 });
 
+
 // Eliminar Producto
 app.delete('/productos/:id', (req, res) => {
     const { id } = req.params;
+    const query = 'DELETE FROM producto WHERE ID_Producto = ?';
 
-    const checkQuery = 'SELECT * FROM Producto WHERE ID_Producto = ?';
-    connection.query(checkQuery, [id], (checkErr, checkResults) => {
-        if (checkErr) {
-            console.error("Error al verificar producto: ", checkErr);
-            return res.status(500).json({ error: "Error al verificar producto" });
+    connection.query(query, [id], (err, results) => {
+        if (err) {
+            console.error("Error al eliminar producto: ", err);
+            res.status(500).json({ error: "Error al eliminar producto" });
+            return;
         }
-        if (checkResults.length === 0) {
-            return res.status(404).json({ error: "Producto no encontrado" });
-        }
-
-        const query = 'DELETE FROM Producto WHERE ID_Producto = ?';
-        connection.query(query, [id], (err, results) => {
-            if (err) {
-                console.error("Error al eliminar producto: ", err);
-                return res.status(500).json({ error: "Error al eliminar producto" });
-            }
-            res.status(200).json({ message: "Producto eliminado con éxito" });
-        });
+        res.status(200).json({ message: "Producto eliminado con éxito" });
     });
 });
 

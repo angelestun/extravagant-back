@@ -7,13 +7,14 @@ const fs = require('fs');
 const webPush = require('web-push');
 const app = express();
 require('dotenv').config();
-
+app.use(express.json());
 app.use(cors());
 app.use(express.json());
 app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
+app.use(cors());
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const productsDir = path.join(uploadsDir, 'products');
@@ -54,7 +55,6 @@ app.use('/uploads/logos', express.static(logosDir));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads/products', express.static(path.join(__dirname, 'uploads/products')));
 
-
 app.use(cors({
     origin: ['https://extravagant-style.vercel.app', 'http://localhost:5173'],
     credentials: true,
@@ -62,10 +62,9 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
     optionsSuccessStatus: 204
-  }));
-  
+}));
 
-app.use(express.json());
+
 
 app.head('/health', (req, res) => {
     res.status(200).end();
@@ -873,18 +872,24 @@ app.put('/productos/:id', upload.single('Imagen'), (req, res) => {
 //GET - Obtener productos por tienda
 app.get('/productos/tienda', (req, res) => {
     const { ID_Usuario, ID_Tienda } = req.query;
+    
+    if (!ID_Tienda) {
+        return res.status(400).json({ error: "ID_Tienda es requerido" });
+    }
+
     const query = 'SELECT * FROM producto WHERE ID_Tienda = ?';
 
-    connection.query(query, [ ID_Tienda], (err, results) => {
+    connection.query(query, [ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
-            res.status(500).json({ error: "Error al obtener productos" });
-            return;
+            return res.status(500).json({ error: "Error al obtener productos" });
         }
+        
+        // Agregar header específico de caché
+        res.set('Cache-Control', 'no-store');
         res.status(200).json(results);
     });
 });
-
 // PUT - Actualizar Producto
 app.put('/productos/:id', (req, res) => {
     const { id } = req.params;
@@ -3296,7 +3301,13 @@ app.get('/api/vendor/:userId/coupons-usage', async (req, res) => {
 });
 
 //#endregion
-
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ 
+        error: 'Error interno del servidor',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {

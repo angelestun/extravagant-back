@@ -345,18 +345,13 @@ app.post('/subscribe', async (req, res) => {
 
 
 const sendPushNotification = async (subscription, data) => {
-    if (!subscription || !subscription.endpoint) {
-        console.error('Suscripción inválida:', subscription);
-        return false;
-    }
-
     try {
         const payload = JSON.stringify({
             notification: {
                 title: data.title || 'Extravagant Style',
                 body: data.message,
-                icon: '/icon-192x192.png',
-                badge: '/icon-192x192.png',
+                icon: '/android-chrome-192x192.png',  // Actualizado para coincidir con manifest
+                badge: '/android-chrome-192x192.png',  // Actualizado para coincidir con manifest
                 data: {
                     url: data.url || '/',
                     dateOfArrival: Date.now()
@@ -366,21 +361,13 @@ const sendPushNotification = async (subscription, data) => {
             }
         });
 
-        await webPush.sendNotification(subscription, payload, {
-            TTL: 60 * 60,
-            urgency: 'high'
-        });
+        await webPush.sendNotification(subscription, payload);
         return true;
     } catch (error) {
         console.error('Error al enviar notificación:', error);
-        if (error.statusCode === 410 || error.statusCode === 404) {
-            pushSubscriptions.delete(subscription.endpoint);
-        }
         return false;
     }
 };
-  
-
 // Endpoint para limpiar las suscripciones inactivas
 const cleanSubscriptions = async () => {
     const validSubscriptions = new Map();

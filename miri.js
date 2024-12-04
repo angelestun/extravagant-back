@@ -2447,10 +2447,10 @@ app.get('/api/coupons/:code', async (req, res) => {
 
 
 app.post('/api/create-order', cors(), async (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'POST');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    // res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
+    // res.header('Access-Control-Allow-Credentials', 'true');
+    // res.header('Access-Control-Allow-Methods', 'POST');
+    // res.header('Access-Control-Allow-Headers', 'Content-Type');
 
     const { 
         total, 
@@ -2525,6 +2525,8 @@ app.post('/api/create-order', cors(), async (req, res) => {
             });
         }
 
+        console.log("previo a insertar pedido");
+        
         const orderQuery = `
             INSERT INTO pedidos (
                 ID_Usuario, 

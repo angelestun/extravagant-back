@@ -2445,14 +2445,20 @@ app.get('/api/coupons/:code', async (req, res) => {
 });
 
 // endpoint de crear orden
-app.post('/api/create-order', async (req, res) => {
-    // Agregar estos headers al inicio del endpoint
+app.options('/api/create-order', (req, res) => {
     res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
-    res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'POST');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.status(200).end();
+});
 
-    // El resto del código se mantiene exactamente igual
+app.post('/api/create-order', async (req, res) => {
+    // Agregar estos headers específicos para el POST
+    res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    // El resto de tu código del endpoint se mantiene igual
     const { 
         total, 
         subtotal,

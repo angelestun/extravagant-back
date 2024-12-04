@@ -1242,7 +1242,7 @@ app.post('/createofertas', async (req, res) => {
 
     try {
         const productInfo = await promiseQuery(
-            'SELECT ID_Producto, Nombre_Producto FROM Producto WHERE ID_Producto = ?',
+            'SELECT ID_Producto, Nombre_Producto FROM producto WHERE ID_Producto = ?',
             [ID_Producto]
         );
 

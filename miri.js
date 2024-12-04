@@ -26,7 +26,6 @@ app.use(cors({
 
 }));
 
-
 const uploadsDir = path.join(__dirname, 'uploads');
 const productsDir = path.join(uploadsDir, 'products');
 const logosDir = path.join(uploadsDir, 'logos');
@@ -75,12 +74,14 @@ app.head('/health', (req, res) => {
 let pushSubscriptions = new Map();
 
 const vapidKeys = {
-    publicKey: process.env.VAPID_PUBLIC_KEY || 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
-    privateKey: process.env.VAPID_PRIVATE_KEY || 'VGjo2Rp_3sdhhC2iE5a3YUdUDJzcMtGRGyi2Un2jV-I',
-    subject: 'mailto:xxx@gmail.com' // Asegúrate de usar un email válido aquí
+
+
+    publicKey: 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
+    privateKey: 'VGjo2Rp_3sdhhC2iE5a3YUdUDJzcMtGRGyi2Un2jV-I',
+    subject: 'mailto:xxxxx@gmail.com'
+
 };
 
-// Configurar web-push con manejo de errores mejorado
 webPush.setVapidDetails(
     vapidKeys.subject,
     vapidKeys.publicKey,
@@ -279,116 +280,126 @@ app.post('/subscribe', async (req, res) => {
             return res.status(400).json({ error: 'Suscripción inválida' });
         }
 
-        // Validar que el usuario existe
-        const userExists = await promiseQuery(
-            'SELECT 1 FROM usuario WHERE ID_Usuario = ?',
-            [userId]
-        );
+        if (!userId) {
+            return res.status(400).json({ error: 'ID de usuario requerido' });
+        }
 
-        if (!userExists.length) {
+        const userQuery = 'SELECT ID_Usuario FROM usuario WHERE ID_Usuario = ?';
+        const userResult = await promiseQuery(userQuery, [userId]);
+
+        if (userResult.length === 0) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        // Eliminar suscripciones antiguas del mismo endpoint
-        pushSubscriptions.delete(subscription.endpoint);
+        const existingSubs = getUserSubscriptions(userId);
+        for (const sub of existingSubs) {
+            pushSubscriptions.delete(sub.endpoint);
+            console.log(`Suscripción antigua eliminada para usuario ${userId}`);
+        }
 
-        // Guardar nueva suscripción
         pushSubscriptions.set(subscription.endpoint, {
             ...subscription,
             userId,
             timestamp: Date.now(),
-            lastActivity: Date.now()
+            lastActivity: Date.now(),
+            userAgent: req.headers['user-agent']
         });
 
-        // Enviar notificación de prueba con mejor manejo de errores
-        try {
-            const testNotification = {
-                notification: {
-                    title: '¡Suscripción Exitosa!',
-                    body: 'Bienvenido a las notificaciones de Extravagant Style',
-                    icon: '/icon-192x192.png',
-                    badge: '/icon-192x192.png',
-                    data: {
-                        url: '/'
-                    }
-                }
-            };
+        console.log(`Nueva suscripción guardada:
+            - Usuario: ${userId}
+            - Endpoint: ${subscription.endpoint}
+            - Total suscripciones: ${pushSubscriptions.size}`);
 
-            await webPush.sendNotification(
-                subscription,
-                JSON.stringify(testNotification),
-                {
-                    TTL: 60 * 60
-                }
-            );
+        const testNotification = {
+            title: '¡Suscripción Exitosa! ✨',
+            message: `Bienvenido a las notificaciones de Extravagant Style`,
+            url: '/'
+        };
+
+        const success = await sendPushNotification(subscription, testNotification);
+
+        if (success) {
+
+            // Endpoint para verificar suscripciones de un usuario
+            app.get('/api/user-subscriptions/:userId', (req, res) => {
+                const { userId } = req.params;
+                const userSubs = getUserSubscriptions(userId);
+                res.json({
+                    userId,
+                    subscriptionCount: userSubs.length,
+                    subscriptions: userSubs.map(sub => ({
+                        endpoint: sub.endpoint,
+                        lastActivity: sub.subscription.lastActivity
+                    }))
+                });
+            });
 
             res.status(201).json({
-                success: true,
-                message: 'Suscripción registrada exitosamente'
+                message: 'Suscripción registrada exitosamente',
+                userId: userId,
+                endpoint: subscription.endpoint,
+                subscriptionCount: pushSubscriptions.size
             });
-        } catch (notificationError) {
-            console.error('Error al enviar notificación de prueba:', notificationError);
-            // Aún así registramos la suscripción
-            res.status(201).json({
-                success: true,
-                message: 'Suscripción registrada pero no se pudo enviar notificación de prueba'
-            });
+        } else {
+            throw new Error('Error al enviar notificación de prueba');
         }
+
     } catch (error) {
         console.error('Error en suscripción:', error);
-        res.status(500).json({ 
-            error: 'Error al registrar suscripción',
-            details: error.message 
-        });
+        res.status(500).json({ error: 'Error al registrar suscripción' });
     }
 });
 
 
 const sendPushNotification = async (subscription, data) => {
     if (!subscription || !subscription.endpoint) {
-        console.error('Suscripción inválida:', subscription);
+        console.log('Suscripción inválida:', subscription);
         return false;
     }
 
     try {
-        const baseUrl = 'https://extravagant-style.vercel.app';
+        // Asegurar que el mensaje sea string y no un objeto
+        const messageText = typeof data.message === 'object' ? 
+            JSON.stringify(data.message) : 
+            String(data.message || '');
+
+        // Construir un payload más simple y directo
         const payload = JSON.stringify({
             notification: {
-                title: data.title || 'Extravagant Style',
-                body: data.message,
-                icon: `${baseUrl}/android-chrome-192x192.png`,
-                badge: `${baseUrl}/android-chrome-192x192.png`,
+                title: String(data.title || 'Extravagant Style'),
+                body: messageText, // Usar messageText directamente como body
+                icon: '/icon-192x192.png',
+                badge: '/icon-192x192.png',
+                vibrate: [100, 50, 100],
                 data: {
                     url: data.url || '/',
-                    dateOfArrival: Date.now()
+                    dateOfArrival: Date.now(),
                 },
-                vibrate: [100, 50, 100],
                 requireInteraction: true,
-                // Añadir información adicional para debugging
-                tag: 'notification-' + Date.now(),
-                timestamp: Date.now()
+                actions: [
+                    {
+                        action: 'open',
+                        title: 'Ver más'
+                    }
+                ]
             }
         });
 
-        // Añadir logging para debugging
-        console.log('Enviando notificación con payload:', payload);
+        console.log('Enviando notificación:', JSON.parse(payload));
 
-        const result = await webPush.sendNotification(
+        await webPush.sendNotification(
             subscription,
             payload,
             {
-                TTL: 60 * 60,
                 urgency: 'high',
-                topic: 'extravagant-notification'
+                TTL: 3600
             }
         );
 
-        console.log('Resultado del envío:', result);
         return true;
     } catch (error) {
-        console.error('Error detallado al enviar notificación:', error);
+        console.error('Error al enviar notificación:', error);
         if (error.statusCode === 410 || error.statusCode === 404) {
-            console.log('Eliminando suscripción inválida');
             pushSubscriptions.delete(subscription.endpoint);
         }
         return false;
@@ -398,18 +409,38 @@ const sendPushNotification = async (subscription, data) => {
 // Endpoint para limpiar las suscripciones inactivas
 const cleanSubscriptions = async () => {
     const validSubscriptions = new Map();
+    
     for (const [endpoint, subscription] of pushSubscriptions) {
         try {
-            await webPush.sendNotification(subscription, JSON.stringify({ title: 'Verificación' }));
+            await webPush.sendNotification(
+                subscription,
+                JSON.stringify({
+                    title: 'Test Notification',
+                    message: 'Verificando suscripción'
+                }),
+                { 
+                    urgency: 'high',
+                    TTL: 10
+                }
+            );
             validSubscriptions.set(endpoint, subscription);
         } catch (error) {
-            console.error('Eliminando suscripción inválida:', endpoint);
+            console.log('Eliminando suscripción inválida:', endpoint);
         }
     }
+    
     pushSubscriptions = validSubscriptions;
+    console.log(`Suscripciones activas después de limpieza: ${pushSubscriptions.size}`);
 };
-setInterval(cleanSubscriptions, 30 * 60 * 1000); // Cada 30 minutos
 
+const maintainSubscriptions = () => {
+    setInterval(async () => {
+        console.log('Iniciando mantenimiento de suscripciones...');
+        await cleanSubscriptions();
+    }, 30 * 60 * 1000); 
+};
+
+maintainSubscriptions();
 
 const notifyNewOffer = async (productInfo, offerType, discount) => {
     try {

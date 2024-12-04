@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const webPush = require('web-push');
 const app = express();
+app.use(cors({origin: '*'}))
+
 require('dotenv').config();
 app.use(express.json());
 //app.use(cors());
@@ -14,7 +16,6 @@ app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
-app.use(cors({origin: '*'}))
 
 //app.use(cors({
 //    origin: 'https://extravagant-style.vercel.app',
@@ -2607,7 +2608,7 @@ app.post('/api/create-order', async (req, res) => {
         }
 
         await connection.commit();
-
+        res.setHeader('Access-Control-Allow-Origin', '*');
         return res.status(201).json({ 
             success: true,
             message: 'Pedido creado con éxito',

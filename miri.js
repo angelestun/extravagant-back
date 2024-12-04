@@ -75,14 +75,12 @@ app.head('/health', (req, res) => {
 let pushSubscriptions = new Map();
 
 const vapidKeys = {
-
-
-    publicKey: 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
-    privateKey: 'VGjo2Rp_3sdhhC2iE5a3YUdUDJzcMtGRGyi2Un2jV-I',
-    subject: 'mailto:xxxxx@gmail.com'
-
+    publicKey: process.env.VAPID_PUBLIC_KEY || 'BL8TL4HNOLqhA819AaYm7ifoluzHeabMLZtQjHnkpz_j95PxnTub_0u8lp2pG4vFXXIO01Uf6dTuXuFIjR-ctVM',
+    privateKey: process.env.VAPID_PRIVATE_KEY || 'VGjo2Rp_3sdhhC2iE5a3YUdUDJzcMtGRGyi2Un2jV-I',
+    subject: 'mailto:xxx@gmail.com' // Asegúrate de usar un email válido aquí
 };
 
+// Configurar web-push con manejo de errores mejorado
 webPush.setVapidDetails(
     vapidKeys.subject,
     vapidKeys.publicKey,
@@ -281,122 +279,97 @@ app.post('/subscribe', async (req, res) => {
             return res.status(400).json({ error: 'Suscripción inválida' });
         }
 
-        if (!userId) {
-            return res.status(400).json({ error: 'ID de usuario requerido' });
-        }
+        // Validar que el usuario existe
+        const userExists = await promiseQuery(
+            'SELECT 1 FROM usuario WHERE ID_Usuario = ?',
+            [userId]
+        );
 
-        const userQuery = 'SELECT ID_Usuario FROM usuario WHERE ID_Usuario = ?';
-        const userResult = await promiseQuery(userQuery, [userId]);
-
-        if (userResult.length === 0) {
+        if (!userExists.length) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        const existingSubs = getUserSubscriptions(userId);
-        for (const sub of existingSubs) {
-            pushSubscriptions.delete(sub.endpoint);
-            console.log(`Suscripción antigua eliminada para usuario ${userId}`);
-        }
+        // Eliminar suscripciones antiguas del mismo endpoint
+        pushSubscriptions.delete(subscription.endpoint);
 
+        // Guardar nueva suscripción
         pushSubscriptions.set(subscription.endpoint, {
             ...subscription,
             userId,
             timestamp: Date.now(),
-            lastActivity: Date.now(),
-            userAgent: req.headers['user-agent']
+            lastActivity: Date.now()
         });
 
-        console.log(`Nueva suscripción guardada:
-            - Usuario: ${userId}
-            - Endpoint: ${subscription.endpoint}
-            - Total suscripciones: ${pushSubscriptions.size}`);
+        // Enviar notificación de prueba con mejor manejo de errores
+        try {
+            const testNotification = {
+                notification: {
+                    title: '¡Suscripción Exitosa!',
+                    body: 'Bienvenido a las notificaciones de Extravagant Style',
+                    icon: '/icon-192x192.png',
+                    badge: '/icon-192x192.png',
+                    data: {
+                        url: '/'
+                    }
+                }
+            };
 
-        const testNotification = {
-            title: '¡Suscripción Exitosa! ✨',
-            message: `Bienvenido a las notificaciones de Extravagant Style`,
-            url: '/'
-        };
-
-        const success = await sendPushNotification(subscription, testNotification);
-
-        if (success) {
-
-            // Endpoint para verificar suscripciones de un usuario
-            app.get('/api/user-subscriptions/:userId', (req, res) => {
-                const { userId } = req.params;
-                const userSubs = getUserSubscriptions(userId);
-                res.json({
-                    userId,
-                    subscriptionCount: userSubs.length,
-                    subscriptions: userSubs.map(sub => ({
-                        endpoint: sub.endpoint,
-                        lastActivity: sub.subscription.lastActivity
-                    }))
-                });
-            });
+            await webPush.sendNotification(
+                subscription,
+                JSON.stringify(testNotification),
+                {
+                    TTL: 60 * 60
+                }
+            );
 
             res.status(201).json({
-                message: 'Suscripción registrada exitosamente',
-                userId: userId,
-                endpoint: subscription.endpoint,
-                subscriptionCount: pushSubscriptions.size
+                success: true,
+                message: 'Suscripción registrada exitosamente'
             });
-        } else {
-            throw new Error('Error al enviar notificación de prueba');
+        } catch (notificationError) {
+            console.error('Error al enviar notificación de prueba:', notificationError);
+            // Aún así registramos la suscripción
+            res.status(201).json({
+                success: true,
+                message: 'Suscripción registrada pero no se pudo enviar notificación de prueba'
+            });
         }
-
     } catch (error) {
         console.error('Error en suscripción:', error);
-        res.status(500).json({ error: 'Error al registrar suscripción' });
+        res.status(500).json({ 
+            error: 'Error al registrar suscripción',
+            details: error.message 
+        });
     }
 });
 
 
 const sendPushNotification = async (subscription, data) => {
     if (!subscription || !subscription.endpoint) {
-        console.log('Suscripción inválida:', subscription);
+        console.error('Suscripción inválida:', subscription);
         return false;
     }
 
     try {
-        // Asegurar que el mensaje sea string y no un objeto
-        const messageText = typeof data.message === 'object' ? 
-            JSON.stringify(data.message) : 
-            String(data.message || '');
-
-        // Construir un payload más simple y directo
         const payload = JSON.stringify({
             notification: {
-                title: String(data.title || 'Extravagant Style'),
-                body: messageText, // Usar messageText directamente como body
+                title: data.title || 'Extravagant Style',
+                body: data.message,
                 icon: '/icon-192x192.png',
                 badge: '/icon-192x192.png',
-                vibrate: [100, 50, 100],
                 data: {
                     url: data.url || '/',
-                    dateOfArrival: Date.now(),
+                    dateOfArrival: Date.now()
                 },
-                requireInteraction: true,
-                actions: [
-                    {
-                        action: 'open',
-                        title: 'Ver más'
-                    }
-                ]
+                vibrate: [100, 50, 100],
+                requireInteraction: true
             }
         });
 
-        console.log('Enviando notificación:', JSON.parse(payload));
-
-        await webPush.sendNotification(
-            subscription,
-            payload,
-            {
-                urgency: 'high',
-                TTL: 3600
-            }
-        );
-
+        await webPush.sendNotification(subscription, payload, {
+            TTL: 60 * 60,
+            urgency: 'high'
+        });
         return true;
     } catch (error) {
         console.error('Error al enviar notificación:', error);
@@ -406,6 +379,7 @@ const sendPushNotification = async (subscription, data) => {
         return false;
     }
 };
+  
 
 // Endpoint para limpiar las suscripciones inactivas
 const cleanSubscriptions = async () => {

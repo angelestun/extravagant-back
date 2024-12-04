@@ -71,7 +71,7 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
 }));
 
 app.head('/health', (req, res) => {
@@ -2454,7 +2454,7 @@ app.get('/api/coupons/:code', async (req, res) => {
 
 // endpoint de crear orden
 
-app.options('/api/create-order', cors()); // Maneja explícitamente OPTIONS
+app.options('/api/create-order', cors());  // Maneja preflight OPTIONS
 
 app.post('/api/create-order', async (req, res) => {
     res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');

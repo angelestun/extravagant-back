@@ -941,7 +941,7 @@ app.get('/producto/tienda', (req, res) => {
         return res.status(400).json({ error: "ID_Tienda es requerido" });
     }
 
-    const query = 'SELECT * FROM Producto WHERE ID_Tienda = ?';
+    const query = 'SELECT * FROM producto WHERE ID_Tienda = ?';
     connection.query(query, [ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
@@ -1927,7 +1927,7 @@ app.delete('/tienda/:id', (req, res) => {
 
 // PARA LA VISTA ADMIN
 // GET - Obtener todas las tiendas
-app.get('/tienda/', (req, res) => { 
+app.get('/tienda', (req, res) => { 
     const query = 'SELECT * FROM tienda';
     
     connection.query(query, (err, results) => {

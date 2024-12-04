@@ -56,15 +56,13 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads/products', express.static(path.join(__dirname, 'uploads/products')));
 
 app.use(cors({
-    origin: ['https://extravagant-style.vercel.app', 'http://localhost:5173'],
+    origin: 'https://extravagant-style.vercel.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
     optionsSuccessStatus: 204
 }));
-
-
 
 app.head('/health', (req, res) => {
     res.status(200).end();

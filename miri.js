@@ -14,13 +14,16 @@ app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
+
 app.use(cors({
     origin: 'https://extravagant-style.vercel.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    credentials: true
+
 }));
 
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -2450,7 +2453,8 @@ app.get('/api/coupons/:code', async (req, res) => {
 });
 
 // endpoint de crear orden
-app.options('/api/create-order', cors());  // Maneja explícitamente OPTIONS
+
+app.options('/api/create-order', cors()); // Maneja explícitamente OPTIONS
 
 app.post('/api/create-order', async (req, res) => {
     res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
@@ -2458,8 +2462,6 @@ app.post('/api/create-order', async (req, res) => {
     res.header('Access-Control-Allow-Methods', 'POST');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
 
-
-    // El resto de tu código del endpoint se mantiene igual
     const { 
         total, 
         subtotal,
@@ -2470,6 +2472,9 @@ app.post('/api/create-order', async (req, res) => {
         Monto_Descuento, 
         Monto_Oferta
     } = req.body;
+
+    const clientId = 'your-client-id'; // Reemplazar con tu clientId de PayPal
+    const secret = 'your-secret'; // Reemplazar con tu secret de PayPal
 
     const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 
@@ -2561,9 +2566,52 @@ app.post('/api/create-order', async (req, res) => {
                 `INSERT INTO pedido_producto 
                 (ID_Pedido, ID_Producto, Cantidad, Precio_Unitario) 
                 VALUES (?, ?, ?, ?)`,
+
                 [orderId, product.ID_Producto, product.Cantidad, 
                 round(parseFloat(product.Precio_Unitario))]
             );
+        }
+
+        // Crear pedido en PayPal si el método de pago es PayPal
+        let paypalOrderId = null;
+        if (paymentMethod === 'PayPal') {
+            const authResponse = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    Authorization: 'Basic ' + Buffer.from(`${clientId}:${secret}`).toString('base64'),
+                },
+                body: 'grant_type=client_credentials',
+            });
+
+            const authData = await authResponse.json();
+            const orderResponse = await fetch('https://api-m.sandbox.paypal.com/v2/checkout/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${authData.access_token}`,
+                },
+                body: JSON.stringify({
+                    intent: 'CAPTURE',
+                    purchase_units: [
+                        {
+                            amount: {
+                                currency_code: 'USD',
+                                value: numericTotal.toFixed(2),
+                            },
+                        },
+                    ],
+                }),
+            });
+
+            const orderData = await orderResponse.json();
+
+            if (!orderData || !orderData.id) {
+                await connection.rollback();
+                return res.status(500).json({ message: 'Error al crear el pedido en PayPal.' });
+            }
+
+            paypalOrderId = orderData.id;
         }
 
         await connection.commit();
@@ -2571,7 +2619,8 @@ app.post('/api/create-order', async (req, res) => {
         return res.status(201).json({ 
             success: true,
             message: 'Pedido creado con éxito',
-            orderId: orderId 
+            orderId: orderId,
+            paypalOrderId: paypalOrderId,
         });
 
     } catch (error) {
@@ -2582,6 +2631,7 @@ app.post('/api/create-order', async (req, res) => {
         return res.status(500).json({ message: 'Error al crear el pedido' });
     }
 });
+
 
 // Endpoint para mover el cupón a usado
 app.post('/api/coupons/move-to-used', async (req, res) => {

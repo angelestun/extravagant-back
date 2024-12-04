@@ -65,14 +65,6 @@ app.use('/uploads/logos', express.static(logosDir));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads/products', express.static(path.join(__dirname, 'uploads/products')));
 
-app.use(cors({
-    origin: 'https://extravagant-style.vercel.app',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    optionsSuccessStatus: 204,
-}));
 
 app.head('/health', (req, res) => {
     res.status(200).end();
@@ -2454,9 +2446,8 @@ app.get('/api/coupons/:code', async (req, res) => {
 
 // endpoint de crear orden
 
-app.options('/api/create-order', cors());  // Maneja preflight OPTIONS
 
-app.post('/api/create-order', async (req, res) => {
+app.post('/api/create-order', cors(), async (req, res) => {
     res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'POST');
@@ -2473,8 +2464,8 @@ app.post('/api/create-order', async (req, res) => {
         Monto_Oferta
     } = req.body;
 
-    const clientId = 'your-client-id'; // Reemplazar con tu clientId de PayPal
-    const secret = 'your-secret'; // Reemplazar con tu secret de PayPal
+    const clientId = 'ARXCvglQwc37WUc43QaaGkxXIxY0c1jTR8TYbmxslg3ZS0xYpviJYvax6uSL8vA40Pa-YndgmdOtayU2'; // Reemplazar con tu clientId de PayPal
+    const secret = 'EEpgq8jXSG1cMVFQfxqfSJwobkgyDvR2GLIbpPriaaebLJA87-fyPBT--cC-h9BgXpM_-Rd0ew4u0oC8'; // Reemplazar con tu secret de PayPal
 
     const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 

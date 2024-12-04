@@ -1798,7 +1798,7 @@ const handleSubmit = async (e) => {
 
     try {
         const response = await axios.post(
-            'https://extravagant-back.vercel.app/createtienda', 
+            'https://extravagant-back-1.onrender.com/createtienda', 
             formDataToSend,
             {
                 headers: { 'Content-Type': 'multipart/form-data' },

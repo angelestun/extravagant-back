@@ -1,6 +1,6 @@
+const cors = require('cors');
 const express = require('express');
 const mysql = require('mysql');
-const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -8,24 +8,23 @@ const webPush = require('web-push');
 const app = express();
 require('dotenv').config();
 app.use(express.json());
-app.use(cors());
-app.use(express.json());
+//app.use(cors());
+//app.use(express.json());
 app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
+app.use(cors({origin: '*'}))
 
-app.use(cors({
-    origin: 'https://extravagant-style.vercel.app',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    optionsSuccessStatus: 204,
-    credentials: true
-
-}));
-
+//app.use(cors({
+//    origin: 'https://extravagant-style.vercel.app',
+//    credentials: true,
+//    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
+//    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+//    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+//    optionsSuccessStatus: 204,
+//    credentials: true
+//}));
 const uploadsDir = path.join(__dirname, 'uploads');
 const productsDir = path.join(uploadsDir, 'products');
 const logosDir = path.join(uploadsDir, 'logos');

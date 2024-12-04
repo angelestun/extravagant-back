@@ -26,6 +26,7 @@ app.use(cors({
 
 }));
 
+
 const uploadsDir = path.join(__dirname, 'uploads');
 const productsDir = path.join(uploadsDir, 'products');
 const logosDir = path.join(uploadsDir, 'logos');
@@ -409,38 +410,18 @@ const sendPushNotification = async (subscription, data) => {
 // Endpoint para limpiar las suscripciones inactivas
 const cleanSubscriptions = async () => {
     const validSubscriptions = new Map();
-    
     for (const [endpoint, subscription] of pushSubscriptions) {
         try {
-            await webPush.sendNotification(
-                subscription,
-                JSON.stringify({
-                    title: 'Test Notification',
-                    message: 'Verificando suscripción'
-                }),
-                { 
-                    urgency: 'high',
-                    TTL: 10
-                }
-            );
+            await webPush.sendNotification(subscription, JSON.stringify({ title: 'Verificación' }));
             validSubscriptions.set(endpoint, subscription);
         } catch (error) {
-            console.log('Eliminando suscripción inválida:', endpoint);
+            console.error('Eliminando suscripción inválida:', endpoint);
         }
     }
-    
     pushSubscriptions = validSubscriptions;
-    console.log(`Suscripciones activas después de limpieza: ${pushSubscriptions.size}`);
 };
+setInterval(cleanSubscriptions, 30 * 60 * 1000); // Cada 30 minutos
 
-const maintainSubscriptions = () => {
-    setInterval(async () => {
-        console.log('Iniciando mantenimiento de suscripciones...');
-        await cleanSubscriptions();
-    }, 30 * 60 * 1000); 
-};
-
-maintainSubscriptions();
 
 const notifyNewOffer = async (productInfo, offerType, discount) => {
     try {

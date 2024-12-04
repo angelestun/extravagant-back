@@ -345,29 +345,56 @@ app.post('/subscribe', async (req, res) => {
 
 
 const sendPushNotification = async (subscription, data) => {
+    if (!subscription || !subscription.endpoint) {
+        console.error('Suscripción inválida:', subscription);
+        return false;
+    }
+
     try {
+        const baseUrl = 'https://extravagant-style.vercel.app';
         const payload = JSON.stringify({
             notification: {
                 title: data.title || 'Extravagant Style',
                 body: data.message,
-                icon: '/android-chrome-192x192.png',  // Actualizado para coincidir con manifest
-                badge: '/android-chrome-192x192.png',  // Actualizado para coincidir con manifest
+                icon: `${baseUrl}/android-chrome-192x192.png`,
+                badge: `${baseUrl}/android-chrome-192x192.png`,
                 data: {
                     url: data.url || '/',
                     dateOfArrival: Date.now()
                 },
                 vibrate: [100, 50, 100],
-                requireInteraction: true
+                requireInteraction: true,
+                // Añadir información adicional para debugging
+                tag: 'notification-' + Date.now(),
+                timestamp: Date.now()
             }
         });
 
-        await webPush.sendNotification(subscription, payload);
+        // Añadir logging para debugging
+        console.log('Enviando notificación con payload:', payload);
+
+        const result = await webPush.sendNotification(
+            subscription,
+            payload,
+            {
+                TTL: 60 * 60,
+                urgency: 'high',
+                topic: 'extravagant-notification'
+            }
+        );
+
+        console.log('Resultado del envío:', result);
         return true;
     } catch (error) {
-        console.error('Error al enviar notificación:', error);
+        console.error('Error detallado al enviar notificación:', error);
+        if (error.statusCode === 410 || error.statusCode === 404) {
+            console.log('Eliminando suscripción inválida');
+            pushSubscriptions.delete(subscription.endpoint);
+        }
         return false;
     }
 };
+
 // Endpoint para limpiar las suscripciones inactivas
 const cleanSubscriptions = async () => {
     const validSubscriptions = new Map();

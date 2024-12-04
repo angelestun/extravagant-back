@@ -10,7 +10,7 @@ app.use(cors({origin: '*'}))
 
 require('dotenv').config();
 app.use(express.json());
-//app.use(cors());
+app.use(cors());
 //app.use(express.json());
 app.head('/health', (req, res) => {
     res.status(200).end();

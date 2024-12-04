@@ -873,7 +873,7 @@ app.put('/productos/:id', upload.single('Imagen'), (req, res) => {
 //GET - Obtener productos por tienda
 app.get('/productos/tienda', (req, res) => {
     const { ID_Usuario, ID_Tienda } = req.query;
-    const query = 'SELECT * FROM producto WHERE AND ID_Tienda = ?';
+    const query = 'SELECT * FROM producto WHERE ID_Tienda = ?';
 
     connection.query(query, [ ID_Tienda], (err, results) => {
         if (err) {

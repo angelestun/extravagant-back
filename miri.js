@@ -17,8 +17,10 @@ app.head('/health', (req, res) => {
 app.use(cors({
     origin: 'https://extravagant-style.vercel.app',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    optionsSuccessStatus: 204
 }));
 
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -2448,18 +2450,14 @@ app.get('/api/coupons/:code', async (req, res) => {
 });
 
 // endpoint de crear orden
-app.options('/api/create-order', (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
-    res.header('Access-Control-Allow-Methods', 'POST');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.status(200).end();
-});
+app.options('/api/create-order', cors());  // Maneja explícitamente OPTIONS
 
 app.post('/api/create-order', async (req, res) => {
-    // Agregar estos headers específicos para el POST
     res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
     res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'POST');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+
 
     // El resto de tu código del endpoint se mantiene igual
     const { 

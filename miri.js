@@ -14,7 +14,12 @@ app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
-app.use(cors());
+app.use(cors({
+    origin: 'https://extravagant-style.vercel.app',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const productsDir = path.join(uploadsDir, 'products');

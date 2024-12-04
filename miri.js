@@ -873,9 +873,9 @@ app.put('/productos/:id', upload.single('Imagen'), (req, res) => {
 //GET - Obtener productos por tienda
 app.get('/productos/tienda', (req, res) => {
     const { ID_Usuario, ID_Tienda } = req.query;
-    const query = 'SELECT * FROM producto WHERE ID_Usuario = ? AND ID_Tienda = ?';
+    const query = 'SELECT * FROM producto WHERE AND ID_Tienda = ?';
 
-    connection.query(query, [ID_Usuario, ID_Tienda], (err, results) => {
+    connection.query(query, [ ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
             res.status(500).json({ error: "Error al obtener productos" });

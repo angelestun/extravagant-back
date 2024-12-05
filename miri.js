@@ -151,22 +151,17 @@ const promiseQuery = (sql, values) => {
 
 let connection;
 
-const handleDisconnect = () => {
-  connection = mysql.createPool({
-    connectionLimit: 10,
+const pool = mysql.createPool({
     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
     user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
     database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
     port: process.env.DB_PORT || 3306,
     ssl: {
-      rejectUnauthorized: false
+        rejectUnauthorized: false
     },
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 10000,
-    waitForConnections: true
-  });
-};
+    connectionLimit: 10
+});
 
 handleDisconnect();
 
@@ -1373,30 +1368,41 @@ app.delete('/ofertas/:id', (req, res) => {
 
 
 // GET - Obtener el carrito de un usuario con información de ofertas
-app.get('/carrito/:userId', async (req, res) => {
+app.get('/carrito/:userId', (req, res) => {
     const userId = req.params.userId;
 
-    
     const query = `
-        SELECT cp.*, o.Descuento, o.Tipo_Oferta, o.Cantidad_Requerida, p.Nombre_Producto, p.Imagen, t.NombreTienda
-        FROM carrito c
-        JOIN carrito_producto cp ON c.ID_Carrito = cp.ID_Carrito
-        LEFT JOIN ofertas o ON cp.ID_Producto = o.ID_Producto 
-        LEFT JOIN producto p ON cp.ID_Producto = p.ID_Producto
-        LEFT JOIN tienda t ON p.ID_Tienda = t.ID_Tienda
-        WHERE c.ID_Usuario = ? 
-        AND (o.Activo = 1 AND NOW() BETWEEN o.Fecha_Inicio AND o.Fecha_Fin)
+        SELECT 
+            cp.*, 
+            p.Nombre_Producto, 
+            p.Imagen, 
+            p.ID_Tienda, 
+            IFNULL(t.NombreTienda, 'Tienda no disponible') AS NombreTienda 
+        FROM 
+            carrito_producto cp
+        JOIN 
+            carrito c ON cp.ID_Carrito = c.ID_Carrito
+        JOIN 
+            producto p ON cp.ID_Producto = p.ID_Producto
+        LEFT JOIN 
+            tienda t ON p.ID_Tienda = t.ID_Tienda
+        WHERE 
+            c.ID_Usuario = ?;
     `;
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error al obtener el carrito: ", err);
-            return res.status(500).json({ error: "Error al obtener el carrito" });
+            return res.status(500).json({ error: 'Error al obtener el carrito' });
         }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'Carrito no encontrado' });
+        }
+
         res.status(200).json(results);
     });
 });
-
 
 // GET - Obtener todos los productos de una tienda
 app.get('/producto/tienda/:idTienda', (req, res) => {
@@ -1595,7 +1601,7 @@ app.delete('/cupones/:id', (req, res) => {
 const activarCupones = () => {
     const query = 'UPDATE cupones SET Activo = 1, Estado = 1 WHERE Fecha_Inicio <= NOW() AND Activo = 0';
 
-    connection.query(query, async (err, results) => {
+    pool.query(query, async (err, results) => {
         if (err) {
             console.error("Error al activar cupones: ", err);
         } else {

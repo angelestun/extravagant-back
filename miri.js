@@ -139,7 +139,7 @@ const notifyUser = async (userId, notification) => {
 
 const promiseQuery = (sql, values) => {
     return new Promise((resolve, reject) => {
-        connection.query(sql, values, (error, results) => {
+        pool.query(sql, values, (error, results) => {
             if (error) {
                 reject(error);
             } else {
@@ -246,7 +246,7 @@ const syncMiddleware = async (req, res, next) => {
 
 const executeQuery = (query, params) => {
     return new Promise((resolve, reject) => {
-        connection.query(query, params, (error, results) => {
+        pool.query(query, params, (error, results) => {
             if (error) reject(error);
             else resolve(results);
         });
@@ -528,7 +528,7 @@ app.post('/api/sync', async (req, res) => {
 // Función para ejecutar consultas
 const queryDatabase = (query, params) => {
     return new Promise((resolve, reject) => {
-        connection.query(query, params, (error, results) => {
+        pool.query(query, params, (error, results) => {
             if (error) {
                 return reject(error);
             }
@@ -548,7 +548,7 @@ app.post('/registro', async (req, res) => {
     try {
         const query = 'INSERT INTO usuario (Nombre, Apellido, Correo, Contraseña, ID_Rol) VALUES (?, ?, ?, ?, ?)';
         const results = await new Promise((resolve, reject) => {
-            connection.query(query, [Nombre, Apellido, Correo, Contraseña, ID_Rol], (err, results) => {
+            pool.query(query, [Nombre, Apellido, Correo, Contraseña, ID_Rol], (err, results) => {
                 if (err) reject(err);
                 resolve(results);
             });
@@ -574,7 +574,7 @@ app.post('/login', (req, res) => {
     const { Correo, Contraseña } = req.body;
 
     const query = 'SELECT * FROM usuario WHERE Correo = ?';
-    connection.query(query, [Correo], (err, results) => {
+    pool.query(query, [Correo], (err, results) => {
         if (err) {
             return res.status(500).json({ error: "Error en la conexión a la base de datos" });
         }
@@ -615,7 +615,7 @@ app.post('/login', (req, res) => {
 app.get('/usuarios', (req, res) => {
     const query = 'SELECT * FROM usuario';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener usuarios: ", err);
             res.status(500).json({ error: "Error al obtener usuarios" });
@@ -630,7 +630,7 @@ app.get('/usuarios/:id', (req, res) => {
     const { id } = req.params;
     const query = 'SELECT * FROM usuario WHERE ID_Usuario = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al obtener usuario: ", err);
             res.status(500).json({ error: "Error al obtener usuario" });
@@ -649,7 +649,7 @@ app.put('/usuarios/:id', (req, res) => {
     const { Nombre, Apellido, Correo, Contraseña } = req.body;
     const query = 'UPDATE usuario SET Nombre = ?, Apellido = ?, Correo = ?, Contraseña = ? WHERE ID_Usuario = ?';
 
-    connection.query(query, [Nombre, Apellido, Correo, Contraseña, id], (err, results) => {
+    pool.query(query, [Nombre, Apellido, Correo, Contraseña, id], (err, results) => {
         if (err) {
             console.error("Error al actualizar usuario: ", err);
             res.status(500).json({ error: "Error al actualizar usuario" });
@@ -668,7 +668,7 @@ app.delete('/usuarios/:id', (req, res) => {
 
  
     const deleteOrdersQuery = 'DELETE FROM pedidos WHERE ID_Usuario = ?';
-    connection.query(deleteOrdersQuery, [id], (err) => {
+    pool.query(deleteOrdersQuery, [id], (err) => {
         if (err) {
             console.error("Error al eliminar pedidos: ", err);
             res.status(500).json({ error: "Error al eliminar pedidos del usuario" });
@@ -676,7 +676,7 @@ app.delete('/usuarios/:id', (req, res) => {
         }
 
         const deleteUserQuery = 'DELETE FROM usuario WHERE ID_Usuario = ?';
-        connection.query(deleteUserQuery, [id], (err, results) => {
+        pool.query(deleteUserQuery, [id], (err, results) => {
             if (err) {
                 console.error("Error al eliminar usuario: ", err);
                 res.status(500).json({ error: "Error al eliminar usuario" });
@@ -799,7 +799,7 @@ app.post('/productos', upload.single('Imagen'), (req, res) => {
         Marca
     ];
 
-    connection.query(query, values, (err, results) => {
+    pool.query(query, values, (err, results) => {
         if (err) {
             console.error("Error al crear producto: ", err);
             return res.status(500).json({ 
@@ -860,7 +860,7 @@ app.put('/productos/:id', upload.single('Imagen'), (req, res) => {
         id
     ];
 
-    connection.query(query, values, (err, results) => {
+    pool.query(query, values, (err, results) => {
         if (err) {
             console.error("Error al actualizar producto: ", err);
             return res.status(500).json({ 
@@ -885,7 +885,7 @@ app.get('/productos/tienda', (req, res) => {
 
     const query = 'SELECT * FROM producto WHERE ID_Tienda = ?';
 
-    connection.query(query, [ID_Tienda], (err, results) => {
+    pool.query(query, [ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
             return res.status(500).json({ error: "Error al obtener productos" });
@@ -902,7 +902,7 @@ app.put('/productos/:id', (req, res) => {
     const { Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, Marca } = req.body;
     const query = 'UPDATE producto SET Nombre_Producto = ?, Descripcion = ?, Precio = ?, Stock = ?, Talla = ?, Color = ?, Imagen = ?, Categoria = ?, Marca = ? WHERE ID_Producto = ?';
 
-    connection.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, Marca, id], (err, results) => {
+    pool.query(query, [Nombre_Producto, Descripcion, Precio, Stock, Talla, Color, Imagen, Categoria, Marca, id], (err, results) => {
         if (err) {
             console.error("Error al actualizar producto: ", err);
             res.status(500).json({ error: "Error al actualizar producto" });
@@ -918,7 +918,7 @@ app.delete('/productos/:id', (req, res) => {
     const { id } = req.params;
     const query = 'DELETE FROM producto WHERE ID_Producto = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al eliminar producto: ", err);
             res.status(500).json({ error: "Error al eliminar producto" });
@@ -934,7 +934,7 @@ app.delete('/productos/:id', (req, res) => {
 // GET - Obtener todos los productos
 app.get('/productos/all', (req, res) => {
     const query = 'SELECT * FROM Producto';
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
             return res.status(500).json({ error: "Error al obtener productos" });
@@ -953,7 +953,7 @@ app.get('/producto/tienda', (req, res) => {
     }
 
     const query = 'SELECT * FROM producto WHERE ID_Tienda = ?';
-    connection.query(query, [ID_Tienda], (err, results) => {
+    pool.query(query, [ID_Tienda], (err, results) => {
         if (err) {
             console.error("Error al obtener productos: ", err);
             return res.status(500).json({ error: "Error al obtener productos" });
@@ -969,7 +969,7 @@ app.get('/producto/tienda', (req, res) => {
 
 // GET - Obtener todos los pedidos
 app.get('/pedidos', (req, res) => {
-    connection.query("SELECT * FROM pedidos", (err, rows) => {
+    pool.query("SELECT * FROM pedidos", (err, rows) => {
         if (err) {
             console.error("Error en la consulta: ", err);
             return res.status(500).json({ error: 'Error en la consulta' });
@@ -983,7 +983,7 @@ app.get('/pedidos/:id', (req, res) => {
     const id = req.params.id;
     
     // Primero obtenemos los detalles del pedido
-    connection.query("SELECT * FROM pedidos WHERE ID_Pedido = ?", [id], (err, row) => {
+    pool.query("SELECT * FROM pedidos WHERE ID_Pedido = ?", [id], (err, row) => {
         if (err) {
             console.error("Error en la consulta: ", err);
             return res.status(500).json({ error: 'Error en la consulta' });
@@ -992,7 +992,7 @@ app.get('/pedidos/:id', (req, res) => {
         }
         
         // Luego obtenemos los productos asociados al pedido
-        connection.query(`
+        pool.query(`
             SELECT p.ID_Producto, p.nombre, pp.Cantidad, pp.Precio_Unitario
             FROM productos p
             JOIN pedido_producto pp ON p.ID_Producto = pp.ID_Producto
@@ -1027,7 +1027,7 @@ app.get('/pedidos/usuario/:userId', (req, res) => {
         WHERE p.ID_Usuario = ?
         ORDER BY p.Fecha_Pedido DESC`;
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error en la consulta: ", err);
             return res.status(500).json({ error: 'Error en la consulta' });
@@ -1068,7 +1068,7 @@ app.get('/pedidos/usuario/:userId', (req, res) => {
 // POST - Agregar un nuevo pedido
 app.post('/pedidos', (req, res) => {
     const { ID_Usuario, Direccion_Envio, Metodo_Pago, Notas, ID_Cupon } = req.body;
-    connection.query(
+    pool.query(
         "INSERT INTO pedidos (ID_Usuario, Fecha_Pedido, Estado_Pedido, Total, Direccion_Envio, Metodo_Pago, Notas, ID_Cupon, Monto_Descuento) VALUES (?, NOW(), 'Pendiente', 0, ?, ?, ?, ?)",
         [ID_Usuario, Direccion_Envio, Metodo_Pago, Notas, ID_Cupon],
         (err, result) => {
@@ -1085,7 +1085,7 @@ app.post('/pedidos', (req, res) => {
 app.put('/pedidos/:id', (req, res) => {
     const id = req.params.id;
     const { Estado_Pedido, Direccion_Envio, Metodo_Pago, Notas, Monto_Descuento } = req.body;
-    connection.query(
+    pool.query(
         "UPDATE pedidos SET Estado_Pedido = ?, Direccion_Envio = ?, Metodo_Pago = ?, Notas = ?, Monto_Descuento = ? WHERE ID_Pedido = ?",
         [Estado_Pedido, Direccion_Envio, Metodo_Pago, Notas, Monto_Descuento, id],
         (err, result) => {
@@ -1103,7 +1103,7 @@ app.put('/pedidos/:id', (req, res) => {
 // DELETE - Eliminar un pedido existente
 app.delete('/pedidos/:id', (req, res) => {
     const id = req.params.id;
-    connection.query(
+    pool.query(
         "DELETE FROM pedidos WHERE ID_Pedido = ?",
         [id],
         (err, result) => {
@@ -1125,7 +1125,7 @@ app.delete('/pedidos/:id', (req, res) => {
 
 // GET - Obtener todos los detalles de pedidos
 app.get('/pedido_producto', (req, res) => {
-    connection.query("SELECT * FROM pedido_producto", (err, rows) => {
+    pool.query("SELECT * FROM pedido_producto", (err, rows) => {
         if (err) {
             console.error("Error en la consulta: ", err);
             res.status(500).send('Error en la consulta');
@@ -1141,7 +1141,7 @@ app.get('/pedido_producto/:id', (req, res) => {
     const id = req.params.id;
 
     const pedidoQuery = "SELECT * FROM pedido_producto WHERE ID_Pedido = ?";
-    connection.query(pedidoQuery, [id], (err, pedidoRow) => {
+    pool.query(pedidoQuery, [id], (err, pedidoRow) => {
         if (err) {
             console.error("Error en la consulta: ", err);
             return res.status(500).send('Error en la consulta');
@@ -1166,7 +1166,7 @@ app.get('/pedido_producto/:id', (req, res) => {
             WHERE 
                 pp.ID_Pedido = ?
         `;
-        connection.query(productosQuery, [pedidoRow[0].ID_Pedido], (err, productosRows) => {
+        pool.query(productosQuery, [pedidoRow[0].ID_Pedido], (err, productosRows) => {
             if (err) {
                 console.error("Error al obtener los productos: ", err);
                 return res.status(500).send('Error al obtener los productos');
@@ -1189,7 +1189,7 @@ app.get('/pedido_producto/:id', (req, res) => {
 // POST - Agregar un nuevo detalle de pedido
 app.post('/pedido_producto', (req, res) => {
     const { ID_Pedido, ID_Producto, Cantidad, Precio_Unitario } = req.body;
-    connection.query(
+    pool.query(
         "INSERT INTO pedido_producto (ID_Pedido, ID_Producto, Cantidad, Precio_Unitario) VALUES (?, ?, ?, ?)",
         [ID_Pedido, ID_Producto, Cantidad, Precio_Unitario],
         (err, result) => {
@@ -1207,7 +1207,7 @@ app.post('/pedido_producto', (req, res) => {
 app.put('/pedido_producto/:id', (req, res) => {
     const id = req.params.id;
     const { ID_Pedido, ID_Producto, Cantidad, Precio_Unitario } = req.body;
-    connection.query(
+    pool.query(
         "UPDATE pedido_producto SET ID_Pedido = ?, ID_Producto = ?, Cantidad = ?, Precio_Unitario = ? WHERE ID_Pedido_Producto = ?",
         [ID_Pedido, ID_Producto, Cantidad, Precio_Unitario, id],
         (err, result) => {
@@ -1226,7 +1226,7 @@ app.put('/pedido_producto/:id', (req, res) => {
 // DELETE - Eliminar un detalle de pedido existente
 app.delete('/pedido_producto/:id', (req, res) => {
     const id = req.params.id;
-    connection.query(
+    pool.query(
         "DELETE FROM pedido_producto WHERE ID_Pedido_Producto = ?",
         [id],
         (err, result) => {
@@ -1295,7 +1295,7 @@ app.get('/oferta/tienda/:idTienda', async (req, res) => {
     const idTienda = req.params.idTienda;
     const query = 'SELECT * FROM ofertas WHERE ID_Tienda = ?'; 
 
-    connection.query(query, [idTienda], (err, results) => { 
+    pool.query(query, [idTienda], (err, results) => { 
         if (err) {
             console.error("Error al obtener ofertas: ", err);
             return res.status(500).json({ error: "Error al obtener ofertas" });
@@ -1319,7 +1319,7 @@ app.put('/ofertas/:idOferta', async (req, res) => {
 
     if (Tipo_Oferta === 'Descuento') {
         const activeDiscounts = await new Promise((resolve, reject) => {
-            connection.query('SELECT COUNT(*) as count FROM ofertas WHERE ID_Tienda = ? AND Tipo_Oferta = "Descuento" AND Activo = 1 AND ID_Oferta != ?', [ID_Tienda, idOferta], (err, results) => {
+            pool.query('SELECT COUNT(*) as count FROM ofertas WHERE ID_Tienda = ? AND Tipo_Oferta = "Descuento" AND Activo = 1 AND ID_Oferta != ?', [ID_Tienda, idOferta], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -1343,7 +1343,7 @@ app.put('/ofertas/:idOferta', async (req, res) => {
 
     const values = [ID_Producto, Fecha_Inicio, Fecha_Fin, Descuento || null, Tipo_Oferta || null, Cantidad_Requerida || null, idOferta];
 
-    connection.query(query, values, (err, results) => {
+    pool.query(query, values, (err, results) => {
         if (err) {
             console.error("Error al actualizar oferta: ", err);
             return res.status(500).json({ error: "Error al actualizar oferta" });
@@ -1358,7 +1358,7 @@ app.delete('/ofertas/:id', (req, res) => {
     const { id } = req.params;
     const query = 'DELETE FROM ofertas WHERE ID_Oferta = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al eliminar oferta: ", err);
             res.status(500).json({ error: "Error al eliminar oferta" });
@@ -1388,7 +1388,7 @@ app.get('/carrito/:userId', async (req, res) => {
         AND (o.Activo = 1 AND NOW() BETWEEN o.Fecha_Inicio AND o.Fecha_Fin)
     `;
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error al obtener el carrito: ", err);
             return res.status(500).json({ error: "Error al obtener el carrito" });
@@ -1402,7 +1402,7 @@ app.get('/carrito/:userId', async (req, res) => {
 app.get('/producto/tienda/:idTienda', (req, res) => {
     const idTienda = req.params.idTienda;
     const query = 'SELECT * FROM producto WHERE ID_Tienda = ?'; 
-    connection.query(query, [idTienda], (err, results) => { 
+    pool.query(query, [idTienda], (err, results) => { 
         if (err) {
             console.error("Error al obtener productos: ", err);
             return res.status(500).json({ error: "Error al obtener productos" });
@@ -1416,7 +1416,7 @@ app.patch('/ofertas/:id/toggle', (req, res) => {
     const { id } = req.params;
     const query = 'UPDATE ofertas SET Activo = NOT Activo WHERE ID_Oferta = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al activar/desactivar oferta: ", err);
             return res.status(500).json({ error: "Error al activar/desactivar oferta" });
@@ -1433,7 +1433,7 @@ app.patch('/ofertas/:id/toggle', (req, res) => {
 const activarOfertas = () => {
     const query = 'UPDATE ofertas SET Activo = 1 WHERE Fecha_Inicio <= NOW() AND Activo = 0';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al activar ofertas: ", err);
         } else {
@@ -1446,7 +1446,7 @@ const activarOfertas = () => {
 const desactivarOfertas = () => {
     const query = 'UPDATE ofertas SET Activo = 0 WHERE Fecha_Fin < NOW() AND Activo = 1';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al desactivar ofertas: ", err);
         } else {
@@ -1497,7 +1497,7 @@ app.post('/createcupones', (req, res) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `;
 
-    connection.query(
+    pool.query(
         query, 
         [
             ID_Usuario,
@@ -1527,7 +1527,7 @@ app.get('/cupones/vendedor/:userId', (req, res) => {
     const userId = req.params.userId;
     const query = 'SELECT * FROM cupones WHERE ID_Usuario = ?';
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error al obtener cupones del vendedor: ", err);
             res.status(500).json({ error: "Error al obtener cupones" });
@@ -1542,7 +1542,7 @@ app.get('/cupones/vendedor/:userId', (req, res) => {
 app.get('/cupones', (req, res) => {
     const query = 'SELECT * FROM cupones';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener Cupones: ", err);
             res.status(500).json({ error: "Error al obtener cupones" });
@@ -1560,7 +1560,7 @@ app.put('/cupones/:id', (req, res) => {
     const Estado = 0; 
     const query = 'UPDATE cupones SET Descripcion = ?, Codigo = ?, Fecha_Fin = ?, Descuento = ?, Activo = ?, Fecha_Inicio = ?, Estado = ?, Motivo_Rechazo = ? WHERE ID_Cupones = ?';
 
-    connection.query(query, [Descripcion, Codigo, Fecha_Fin, Descuento, Activo, Fecha_Inicio, Estado, Motivo_Rechazo, id], (err, results) => {
+    pool.query(query, [Descripcion, Codigo, Fecha_Fin, Descuento, Activo, Fecha_Inicio, Estado, Motivo_Rechazo, id], (err, results) => {
         if (err) {
             console.error("Error al actualizar cupones: ", err);
             res.status(500).json({ error: "Error al actualizar cupón" });
@@ -1579,7 +1579,7 @@ app.delete('/cupones/:id', (req, res) => {
     const { id } = req.params;
     const query = 'DELETE FROM cupones WHERE ID_Cupones = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al eliminar cupón: ", err);
             res.status(500).json({ error: "Error al eliminar cupón" });
@@ -1595,7 +1595,7 @@ app.delete('/cupones/:id', (req, res) => {
 const activarCupones = () => {
     const query = 'UPDATE cupones SET Activo = 1, Estado = 1 WHERE Fecha_Inicio <= NOW() AND Activo = 0';
 
-    connection.query(query, async (err, results) => {
+    pool.query(query, async (err, results) => {
         if (err) {
             console.error("Error al activar cupones: ", err);
         } else {
@@ -1643,7 +1643,7 @@ setInterval(() => {
 const desactivarCupones = () => {
     const query = 'UPDATE cupones SET Activo = 0 WHERE Fecha_Fin < NOW() AND Activo = 1';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al desactivar cupones: ", err);
         } else {
@@ -1664,7 +1664,7 @@ setInterval(() => {
 app.get('/cupones', (req, res) => {
     const query = 'SELECT * FROM cupones';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener Cupones: ", err);
             res.status(500).json({ error: "Error al obtener cupones" });
@@ -1684,7 +1684,7 @@ app.put('/cupones/aprobar/:id', (req, res) => {
         SET Estado = 1, Fecha_Aprobacion = ? 
         WHERE ID_Cupones = ?`; 
 
-    connection.query(query, [currentDateTime, id], (err, results) => {
+    pool.query(query, [currentDateTime, id], (err, results) => {
         if (err) {
             console.error("Error al aprobar el cupón: ", err);
             res.status(500).json({ error: "Error al aprobar el cupón" });
@@ -1704,7 +1704,7 @@ app.put('/cupones/rechazar/:id', (req, res) => {
     const { Motivo_Rechazo } = req.body;
     const query = 'UPDATE cupones SET Estado = 2, Motivo_Rechazo = ? WHERE ID_Cupones = ?'; 
 
-    connection.query(query, [Motivo_Rechazo, id], (err, results) => {
+    pool.query(query, [Motivo_Rechazo, id], (err, results) => {
         if (err) {
             console.error("Error al rechazar el cupón: ", err);
             res.status(500).json({ error: "Error al rechazar el cupón" });
@@ -1721,7 +1721,7 @@ app.put('/cupones/rechazar/:id', (req, res) => {
 app.get('/cupones/pendientes', (req, res) => {
     console.log("Solicitud recibida para cupones pendientes");
     const query = 'SELECT * FROM cupones WHERE Estado = 0';
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener cupones: ", err);
             return res.status(500).json({ error: "Error al obtener cupones" });
@@ -1736,7 +1736,7 @@ app.get('/cupones/pendientes', (req, res) => {
 app.get('/cupones/aprobados', (req, res) => {
     const query = 'SELECT * FROM cupones WHERE Estado = 1';
 
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener cupones aprobados: ", err);
             res.status(500).json({ error: "Error al obtener cupones aprobados" });
@@ -1770,7 +1770,7 @@ app.post('/createtienda', upload.single('logo'), (req, res) => {
         logo
     });
 
-    connection.query(
+    pool.query(
         'INSERT INTO tienda (NombreTienda, Descripcion, logo, creacion, ID_Usuario) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)',
         [NombreTienda, Descripcion, logo, parseInt(userId)],
         (err, results) => {
@@ -1836,7 +1836,7 @@ app.get('/tienda/:id', (req, res) => {
     const { id } = req.params;
     
     const queryByUser = 'SELECT * FROM tienda WHERE ID_Usuario = ?';
-    connection.query(queryByUser, [id], (err, userResults) => {
+    pool.query(queryByUser, [id], (err, userResults) => {
         if (err) {
             console.error("Error al obtener tiendas: ", err);
             return res.status(500).json({ error: "Error al obtener tiendas" });
@@ -1847,7 +1847,7 @@ app.get('/tienda/:id', (req, res) => {
         }
         
         const queryByStore = 'SELECT * FROM tienda WHERE ID_Tienda = ?';
-        connection.query(queryByStore, [id], (err, storeResults) => {
+        pool.query(queryByStore, [id], (err, storeResults) => {
             if (err) {
                 console.error("Error al obtener tienda: ", err);
                 return res.status(500).json({ error: "Error al obtener tienda" });
@@ -1891,7 +1891,7 @@ app.put('/tienda/:id', upload.single('logo'), (req, res) => {
     const { id } = req.params;
     const { NombreTienda, Descripcion } = req.body;
 
-    connection.query('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id], (err, results) => {
+    pool.query('SELECT logo FROM tienda WHERE ID_Tienda = ?', [id], (err, results) => {
         if (err) {
             console.error("Error al obtener tienda: ", err);
             return res.status(500).json({ error: "Error al obtener tienda" });
@@ -1904,7 +1904,7 @@ app.put('/tienda/:id', upload.single('logo'), (req, res) => {
         const logo = req.file ? req.file.originalname : currentLogo; 
 
         const query = 'UPDATE tienda SET NombreTienda = ?, Descripcion = ?, logo = ? WHERE ID_Tienda = ?';
-        connection.query(query, [NombreTienda, Descripcion, logo, id], (err, results) => {
+        pool.query(query, [NombreTienda, Descripcion, logo, id], (err, results) => {
             if (err) {
                 console.error("Error al actualizar tienda: ", err);
                 return res.status(500).json({ error: "Error al actualizar tienda" });
@@ -1923,7 +1923,7 @@ app.delete('/tienda/:id', (req, res) => {
     const { id } = req.params;
     const query = 'DELETE FROM tienda WHERE ID_Tienda = ?';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al eliminar tienda: ", err);
             return res.status(500).json({ error: "Error al eliminar tienda" });
@@ -1941,7 +1941,7 @@ app.delete('/tienda/:id', (req, res) => {
 app.get('/tienda', (req, res) => { 
     const query = 'SELECT * FROM tienda';
     
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener tiendas: ", err);
             return res.status(500).json({ error: "Error al obtener tiendas" });
@@ -1955,7 +1955,7 @@ app.get('/tienda', (req, res) => {
 // GET - Obtener todas las tiendas pendientes
 app.get('/tiendas/pendientes', (req, res) => {
     const query = 'SELECT * FROM tienda WHERE activo = 0';
-    connection.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             console.error("Error al obtener tiendas pendientes: ", err);
             return res.status(500).json({ error: "Error al obtener tiendas pendientes" });
@@ -1969,7 +1969,7 @@ app.put('/tienda/aprobar/:id', (req, res) => {
     const { id } = req.params;
 
     const query = 'UPDATE tienda SET activo = 1 WHERE ID_Tienda = ?';
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al aprobar tienda: ", err);
             return res.status(500).json({ error: "Error al aprobar tienda" });
@@ -1986,7 +1986,7 @@ app.put('/tienda/rechazar/:id', (req, res) => {
     const { id } = req.params;
 
     const query = 'UPDATE tienda SET activo = 2 WHERE ID_Tienda = ?';
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al rechazar tienda: ", err);
             return res.status(500).json({ error: "Error al rechazar tienda" });
@@ -2003,7 +2003,7 @@ app.put('/tienda/activar/:id', (req, res) => {
     const { id } = req.params;
     const query = 'UPDATE tienda SET activo = 1 WHERE ID_Tienda = ? AND activo = 3';
 
-    connection.query(query, [id], (err, results) => {
+    pool.query(query, [id], (err, results) => {
         if (err) {
             console.error("Error al activar tienda: ", err);
             return res.status(500).json({ error: "Error al activar tienda" });
@@ -2021,7 +2021,7 @@ app.put('/tienda/baja/:id', (req, res) => {
     const { motivo_baja } = req.body;
 
     const query = 'UPDATE tienda SET activo = 3, motivo_baja = ? WHERE ID_Tienda = ?';
-    connection.query(query, [motivo_baja, id], (err, results) => {
+    pool.query(query, [motivo_baja, id], (err, results) => {
         if (err) {
             console.error("Error al dar de baja tienda: ", err);
             return res.status(500).json({ error: "Error al dar de baja tienda" });
@@ -2070,7 +2070,7 @@ app.get('/carrito-sin-oferta/:userId', (req, res) => {
             o.ID_Oferta IS NULL;
     `;
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error al obtener los productos sin oferta: ", err);
             return res.status(500).json({ error: 'Error al obtener los productos sin oferta' });
@@ -2103,7 +2103,7 @@ app.get('/carrito/:userId', (req, res) => {
             c.ID_Usuario = ?;
     `;
 
-    connection.query(query, [userId], (err, results) => {
+    pool.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Error al obtener el carrito: ", err);
             return res.status(500).json({ error: 'Error al obtener el carrito' });
@@ -2130,7 +2130,7 @@ app.post('/carrito', async (req, res) => {
      
         const cartIdQuery = 'SELECT ID_Carrito FROM carrito WHERE ID_Usuario = ?';
         const cartResults = await new Promise((resolve, reject) => {
-            connection.query(cartIdQuery, [ID_Usuario], (err, results) => {
+            pool.query(cartIdQuery, [ID_Usuario], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2141,7 +2141,7 @@ app.post('/carrito', async (req, res) => {
         
             const insertCartQuery = 'INSERT INTO carrito (ID_Usuario) VALUES (?)';
             const result = await new Promise((resolve, reject) => {
-                connection.query(insertCartQuery, [ID_Usuario], (err, results) => {
+                pool.query(insertCartQuery, [ID_Usuario], (err, results) => {
                     if (err) return reject(err);
                     resolve(results);
                 });
@@ -2153,7 +2153,7 @@ app.post('/carrito', async (req, res) => {
 
         const priceQuery = 'SELECT Precio FROM producto WHERE ID_Producto = ?';
         const priceResult = await new Promise((resolve, reject) => {
-            connection.query(priceQuery, [ID_Producto], (err, results) => {
+            pool.query(priceQuery, [ID_Producto], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2167,7 +2167,7 @@ app.post('/carrito', async (req, res) => {
 
         const checkProductQuery = 'SELECT * FROM carrito_producto WHERE ID_Carrito = ? AND ID_Producto = ?';
         const productResults = await new Promise((resolve, reject) => {
-            connection.query(checkProductQuery, [ID_Carrito, ID_Producto], (err, results) => {
+            pool.query(checkProductQuery, [ID_Carrito, ID_Producto], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2177,7 +2177,7 @@ app.post('/carrito', async (req, res) => {
             const newQuantity = productResults[0].Cantidad + Cantidad;
             const updateQuantityQuery = 'UPDATE carrito_producto SET Cantidad = ?, Precio = ? WHERE ID_Carrito = ? AND ID_Producto = ?';
             await new Promise((resolve, reject) => {
-                connection.query(updateQuantityQuery, [newQuantity, Precio, ID_Carrito, ID_Producto], (err) => {
+                pool.query(updateQuantityQuery, [newQuantity, Precio, ID_Carrito, ID_Producto], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2185,7 +2185,7 @@ app.post('/carrito', async (req, res) => {
         } else {
             const insertProductQuery = 'INSERT INTO carrito_producto (ID_Carrito, ID_Producto, Cantidad, Precio) VALUES (?, ?, ?, ?)';
             await new Promise((resolve, reject) => {
-                connection.query(insertProductQuery, [ID_Carrito, ID_Producto, Cantidad, Precio], (err) => {
+                pool.query(insertProductQuery, [ID_Carrito, ID_Producto, Cantidad, Precio], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2207,7 +2207,7 @@ app.put('/carrito-sin-oferta/:userId', async (req, res) => {
     try {
         const cartIdQuery = 'SELECT ID_Carrito FROM carrito WHERE ID_Usuario = ?';
         const cartResults = await new Promise((resolve, reject) => {
-            connection.query(cartIdQuery, [userId], (err, results) => {
+            pool.query(cartIdQuery, [userId], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2225,7 +2225,7 @@ app.put('/carrito-sin-oferta/:userId', async (req, res) => {
                 VALUES (?, ?, ?, ?) 
                 ON DUPLICATE KEY UPDATE Cantidad = ?`;
             await new Promise((resolve, reject) => {
-                connection.query(query, [ID_Carrito, item.ID_Producto, item.Cantidad, item.Precio, item.Cantidad], (err) => {
+                pool.query(query, [ID_Carrito, item.ID_Producto, item.Cantidad, item.Precio, item.Cantidad], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2248,7 +2248,7 @@ app.put('/carrito/:userId', async (req, res) => {
     try {
         const cartIdQuery = 'SELECT ID_Carrito FROM carrito WHERE ID_Usuario = ?';
         const cartResults = await new Promise((resolve, reject) => {
-            connection.query(cartIdQuery, [userId], (err, results) => {
+            pool.query(cartIdQuery, [userId], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2266,7 +2266,7 @@ app.put('/carrito/:userId', async (req, res) => {
                 VALUES (?, ?, ?, ?) 
                 ON DUPLICATE KEY UPDATE Cantidad = ?`;
             await new Promise((resolve, reject) => {
-                connection.query(query, [ID_Carrito, item.ID_Producto, item.Cantidad, item.Precio, item.Cantidad], (err) => {
+                pool.query(query, [ID_Carrito, item.ID_Producto, item.Cantidad, item.Precio, item.Cantidad], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2292,7 +2292,7 @@ app.delete('/carrito', async (req, res) => {
         // Obtener el ID_Carrito del usuario
         const cartIdQuery = 'SELECT ID_Carrito FROM carrito WHERE ID_Usuario = ?';
         const cartResults = await new Promise((resolve, reject) => {
-            connection.query(cartIdQuery, [ID_Usuario], (err, results) => {
+            pool.query(cartIdQuery, [ID_Usuario], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2307,7 +2307,7 @@ app.delete('/carrito', async (req, res) => {
         // Eliminar el producto del carrito
         const deleteQuery = 'DELETE FROM carrito_producto WHERE ID_Carrito = ? AND ID_Producto = ?';
         await new Promise((resolve, reject) => {
-            connection.query(deleteQuery, [ID_Carrito, ID_Producto], (err, results) => {
+            pool.query(deleteQuery, [ID_Carrito, ID_Producto], (err, results) => {
                 if (err) return reject(err);
                 if (results.affectedRows === 0) {
                     return res.status(404).json({ error: "Producto no encontrado en el carrito." });
@@ -2331,7 +2331,7 @@ app.delete('/carrito/clear/:userId', async (req, res) => {
         // Obtener el ID_Carrito del usuario
         const cartIdQuery = 'SELECT ID_Carrito FROM carrito WHERE ID_Usuario = ?';
         const cartResults = await new Promise((resolve, reject) => {
-            connection.query(cartIdQuery, [userId], (err, results) => {
+            pool.query(cartIdQuery, [userId], (err, results) => {
                 if (err) return reject(err);
                 resolve(results);
             });
@@ -2343,7 +2343,7 @@ app.delete('/carrito/clear/:userId', async (req, res) => {
             // Eliminar todos los productos del carrito
             const deleteProductsQuery = 'DELETE FROM carrito_producto WHERE ID_Carrito = ?';
             await new Promise((resolve, reject) => {
-                connection.query(deleteProductsQuery, [ID_Carrito], (err) => {
+                pool.query(deleteProductsQuery, [ID_Carrito], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2352,7 +2352,7 @@ app.delete('/carrito/clear/:userId', async (req, res) => {
             // Eliminar el carrito
             const deleteCartQuery = 'DELETE FROM carrito WHERE ID_Usuario = ?';
             await new Promise((resolve, reject) => {
-                connection.query(deleteCartQuery, [userId], (err) => {
+                pool.query(deleteCartQuery, [userId], (err) => {
                     if (err) return reject(err);
                     resolve();
                 });
@@ -2370,7 +2370,7 @@ app.delete('/carrito/clear/:userId', async (req, res) => {
 app.post ('/carrito/registro', async (req, res) => {
     const { ID_Usuario } =req.body;
     const query = 'INSERT INTO carrito (ID_Usuario) VALUES (?)';
-    connection.query(query, [ID_Usuario], (err, results) => {
+    pool.query(query, [ID_Usuario], (err, results) => {
         if (err) {
             console.error("Error al registrar el carrito: ", err);
             return res.status(500).json({ error: "Error al registrar el carrito" });

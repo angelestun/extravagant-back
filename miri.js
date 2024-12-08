@@ -16,6 +16,9 @@ app.head('/health', (req, res) => {
     res.status(200).end();
 });
 
+const { pool, query, transaction } = require('./dbConfig');
+const connection = pool;
+
 
 //app.use(cors({
 //    origin: 'https://extravagant-style.vercel.app',
@@ -143,26 +146,25 @@ const promiseQuery = (sql, values) => {
     });
 };
 
-let connection;
 
-const handleDisconnect = () => {
-  connection = mysql.createPool({
-    connectionLimit: 10,
-    host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-    user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
-    password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
-    database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
-    port: process.env.DB_PORT || 3306,
-    ssl: {
-      rejectUnauthorized: false
-    },
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 10000,
-    waitForConnections: true
-  });
-};
+// const handleDisconnect = () => {
+//   connection = mysql.createPool({
+//     connectionLimit: 10,
+//     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
+//     user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
+//     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
+//     database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
+//     port: process.env.DB_PORT || 3306,
+//     ssl: {
+//       rejectUnauthorized: false
+//     },
+//     enableKeepAlive: true,
+//     keepAliveInitialDelay: 10000,
+//     waitForConnections: true
+//   });
+// };
 
-handleDisconnect();
+// handleDisconnect();
 
 
 
@@ -2448,11 +2450,6 @@ app.get('/api/coupons/:code', async (req, res) => {
 
 
 app.post('/api/create-order', async (req, res) => {
-    // res.header('Access-Control-Allow-Origin', 'https://extravagant-style.vercel.app');
-    // res.header('Access-Control-Allow-Credentials', 'true');
-    // res.header('Access-Control-Allow-Methods', 'POST');
-    // res.header('Access-Control-Allow-Headers', 'Content-Type');
-
     const { 
         total, 
         subtotal,
@@ -2464,110 +2461,76 @@ app.post('/api/create-order', async (req, res) => {
         Monto_Oferta
     } = req.body;
 
-    const clientId = 'ARXCvglQwc37WUc43QaaGkxXIxY0c1jTR8TYbmxslg3ZS0xYpviJYvax6uSL8vA40Pa-YndgmdOtayU2'; // Reemplazar con tu clientId de PayPal
-    const secret = 'EEpgq8jXSG1cMVFQfxqfSJwobkgyDvR2GLIbpPriaaebLJA87-fyPBT--cC-h9BgXpM_-Rd0ew4u0oC8'; // Reemplazar con tu secret de PayPal
-
     const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 
     try {
-        await new Promise((resolve, reject) => {
-            connection.beginTransaction(err => {
-                if (err) reject(err);
-                else resolve();
-            });
+        const result = await transaction(async (connection) => {
+            const numericSubtotal = round(parseFloat(subtotal));
+            const numericMontoOferta = round(parseFloat(Monto_Oferta || 0));
+            const numericMontoDescuento = round(parseFloat(Monto_Descuento || 0));
+            const numericTotal = round(parseFloat(total));
+
+            let couponId = null;
+            let finalMontoDescuento = numericMontoDescuento;
+
+            if (couponCode) {
+                const [couponResults] = await query(
+                    `SELECT * FROM cupones 
+                     WHERE Codigo = ? AND Activo = 1 AND Estado = 1`,
+                    [couponCode]
+                );
+                
+                if (couponResults && couponResults.length > 0) {
+                    const coupon = couponResults[0];
+                    const currentDate = new Date();
+                    const startDate = new Date(coupon.Fecha_Inicio);
+                    const endDate = new Date(coupon.Fecha_Fin);
+
+                    if (currentDate < startDate || currentDate > endDate) {
+                        throw new Error('El cupón no está vigente.');
+                    }
+
+                    couponId = coupon.ID_Cupones;
+                }
+            }
+
+            const calculatedTotal = round(numericSubtotal - numericMontoOferta - finalMontoDescuento);
+
+            if (Math.abs(calculatedTotal - numericTotal) > 0.01) {
+                throw new Error('El total no coincide con los descuentos aplicados');
+            }
+
+            const orderResult = await query(
+                `INSERT INTO pedidos (
+                    ID_Usuario, Fecha_Pedido, Estado_Pedido, Total, 
+                    Subtotal, Metodo_Pago, Monto_Descuento, Monto_Oferta
+                ) VALUES (?, NOW(), 'Completado', ?, ?, ?, ?, ?)`,
+                [
+                    ID_Usuario, calculatedTotal, numericSubtotal,
+                    paymentMethod, finalMontoDescuento, numericMontoOferta
+                ]
+            );
+
+            const orderId = orderResult.insertId;
+
+            for (const product of products) {
+                await query(
+                    `INSERT INTO pedido_producto 
+                     (ID_Pedido, ID_Producto, Cantidad, Precio_Unitario) 
+                     VALUES (?, ?, ?, ?)`,
+                    [
+                        orderId, product.ID_Producto, product.Cantidad,
+                        round(parseFloat(product.Precio_Unitario))
+                    ]
+                );
+            }
+
+            return { orderId, calculatedTotal };
         });
 
-        const numericSubtotal = round(parseFloat(subtotal));
-        const numericMontoOferta = round(parseFloat(Monto_Oferta || 0));
-        const numericMontoDescuento = round(parseFloat(Monto_Descuento || 0));
-        const numericTotal = round(parseFloat(total));
-
-        let couponId = null;
-        let finalMontoDescuento = numericMontoDescuento;
-
-        if (couponCode) {
-            const query = `
-                SELECT c.ID_Cupones, c.Codigo, c.Descuento, c.Fecha_Inicio, c.Fecha_Fin, 
-                       c.ID_Tienda, c.Activo, c.Estado
-                FROM cupones c
-                WHERE c.Codigo = ? AND c.Activo = 1 AND c.Estado = 1
-            `;
-
-            const [results] = await promiseQuery(query, [couponCode]);
-            
-            if (results && results.length > 0) {
-                const coupon = results[0];
-                const currentDate = new Date();
-                const startDate = new Date(coupon.Fecha_Inicio);
-                const endDate = new Date(coupon.Fecha_Fin);
-
-                if (currentDate < startDate || currentDate > endDate) {
-                    await connection.rollback();
-                    return res.status(400).json({ message: 'El cupón no está vigente.' });
-                }
-
-                couponId = coupon.ID_Cupones;
-            }
-        }
-
-        const calculatedTotal = round(numericSubtotal - numericMontoOferta - finalMontoDescuento);
-
-        if (Math.abs(calculatedTotal - numericTotal) > 0.01) {
-            await connection.rollback();
-            return res.status(400).json({ 
-                message: 'El total no coincide con los descuentos aplicados',
-                debug: {
-                    subtotal: numericSubtotal,
-                    montoOferta: numericMontoOferta,
-                    montoDescuento: finalMontoDescuento,
-                    totalRecibido: numericTotal,
-                    totalCalculado: calculatedTotal
-                }
-            });
-        }
-
-        console.log("previo a insertar pedido");
-        
-        const orderQuery = `
-            INSERT INTO pedidos (
-                ID_Usuario, 
-                Fecha_Pedido, 
-                Estado_Pedido, 
-                Total, 
-                Subtotal,
-                Metodo_Pago, 
-                Monto_Descuento, 
-                Monto_Oferta
-            ) 
-            VALUES (?, NOW(), 'Completado', ?, ?, ?, ?, ?)
-        `;
-
-        const orderValues = [
-            ID_Usuario, 
-            calculatedTotal,
-            numericSubtotal,
-            paymentMethod, 
-            finalMontoDescuento,
-            numericMontoOferta
-        ];
-
-        const orderResult = await promiseQuery(orderQuery, orderValues);
-        const orderId = orderResult.insertId;
-
-        for (const product of products) {
-            await promiseQuery(
-                `INSERT INTO pedido_producto 
-                (ID_Pedido, ID_Producto, Cantidad, Precio_Unitario) 
-                VALUES (?, ?, ?, ?)`,
-
-                [orderId, product.ID_Producto, product.Cantidad, 
-                round(parseFloat(product.Precio_Unitario))]
-            );
-        }
-
-        // Crear pedido en PayPal si el método de pago es PayPal
         let paypalOrderId = null;
         if (paymentMethod === 'PayPal') {
+            // Configuración PayPal...
             const authResponse = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
                 method: 'POST',
                 headers: {
@@ -2586,45 +2549,38 @@ app.post('/api/create-order', async (req, res) => {
                 },
                 body: JSON.stringify({
                     intent: 'CAPTURE',
-                    purchase_units: [
-                        {
-                            amount: {
-                                currency_code: 'USD',
-                                value: numericTotal.toFixed(2),
-                            },
+                    purchase_units: [{
+                        amount: {
+                            currency_code: 'USD',
+                            value: result.calculatedTotal.toFixed(2),
                         },
-                    ],
+                    }],
                 }),
             });
 
             const orderData = await orderResponse.json();
-
             if (!orderData || !orderData.id) {
-                await connection.rollback();
-                return res.status(500).json({ message: 'Error al crear el pedido en PayPal.' });
+                throw new Error('Error al crear el pedido en PayPal.');
             }
-
             paypalOrderId = orderData.id;
         }
 
-        await connection.commit();
         res.setHeader('Access-Control-Allow-Origin', '*');
         return res.status(201).json({ 
             success: true,
             message: 'Pedido creado con éxito',
-            orderId: orderId,
+            orderId: result.orderId,
             paypalOrderId: paypalOrderId,
         });
 
     } catch (error) {
-        if (connection) {
-            await connection.rollback();
-        }
         console.error('Error al crear el pedido:', error);
-        return res.status(500).json({ message: 'Error al crear el pedido' });
+        return res.status(500).json({ 
+            message: 'Error al crear el pedido',
+            error: error.message 
+        });
     }
 });
-
 
 // Endpoint para mover el cupón a usado
 app.post('/api/coupons/move-to-used', async (req, res) => {
@@ -2726,6 +2682,7 @@ app.post('/api/coupons/move-to-used', async (req, res) => {
         });
     }
 });
+
 app.post('/api/coupons/move-to-used', async (req, res) => {
     const { couponCode, userId, orderId } = req.body;
 

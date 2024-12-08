@@ -1451,11 +1451,14 @@ const desactivarOfertas = () => {
     });
 };
 
+activarOfertas();
+desactivarOfertas();
+
+// Configurar el intervalo de 12 horas
 setInterval(() => {
     activarOfertas();
     desactivarOfertas(); 
-}, 10 * 60 * 1000); 
-
+}, 12 * 60 * 60 * 1000);
 //#endregion
 
 //#region CRUD Cupones
@@ -1633,7 +1636,7 @@ const activarCupones = () => {
 setInterval(() => {
     activarCupones();
     desactivarCupones();
-}, 10 * 60 * 1000); 
+}, 12 * 60 * 60 * 1000); 
 
 // PUT - Desactivar cupones que han pasado su fecha de fin
 const desactivarCupones = () => {

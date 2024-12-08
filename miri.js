@@ -17,7 +17,6 @@ app.head('/health', (req, res) => {
 });
 
 const { pool, query, transaction } = require('./dbConfig');
-const connection = pool;
 
 
 //app.use(cors({
@@ -147,24 +146,23 @@ const promiseQuery = (sql, values) => {
 };
 
 
-// const handleDisconnect = () => {
-//   connection = mysql.createPool({
-//     connectionLimit: 10,
-//     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
-//     user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
-//     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
-//     database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
-//     port: process.env.DB_PORT || 3306,
-//     ssl: {
-//       rejectUnauthorized: false
-//     },
-//     enableKeepAlive: true,
-//     keepAliveInitialDelay: 10000,
-//     waitForConnections: true
-//   });
-// };
+ const handleDisconnect = () => {
+  connection = mysql.createPool({
+   connectionLimit: 4,
+     host: process.env.DB_HOST || 'beyokj9jopaygfbw9j8i-mysql.services.clever-cloud.com',
+     user: process.env.DB_USER || 'beyokj9jopaygfbw9j8i',
+     password: process.env.DB_PASSWORD || 'u0kizdyccrms8r6s',
+    database: process.env.DB_NAME || 'beyokj9jopaygfbw9j8i',
+     port: process.env.DB_PORT || 3306,
+     ssl: {
+       rejectUnauthorized: false     },
+     enableKeepAlive: true,
+     keepAliveInitialDelay: 10000,
+    waitForConnections: true
+   });
+ };
 
-// handleDisconnect();
+ handleDisconnect();
 
 
 

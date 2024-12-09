@@ -1861,28 +1861,47 @@ app.get('/tienda/:id', (req, res) => {
     });
 });
 
-
-// GET - Obtener una tienda por ID
+// GET - Obtener tienda por ID de usuario
 app.get('/tienda/:id', async (req, res) => {
     const { id } = req.params;
     
-    try {
-        const results = await promiseQuery('SELECT * FROM tienda WHERE ID_Usuario = ?', [id]);
-        if (results.length > 0) {
-            return res.status(200).json(results);
+    const query = 'SELECT * FROM tienda WHERE ID_Usuario = ?';
+    
+    connection.query(query, [id], (err, results) => {
+        if (err) {
+            console.error("Error al obtener tiendas: ", err);
+            return res.status(500).json({ error: "Error al obtener tiendas" });
         }
         
-        const storeResult = await promiseQuery('SELECT * FROM tienda WHERE ID_Tienda = ?', [id]);
-        if (storeResult.length === 0) {
-            return res.status(404).json({ error: "Tienda no encontrada" });
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No se encontraron tiendas para este usuario" });
         }
         
-        res.status(200).json(storeResult[0]);
-    } catch (err) {
-        console.error("Error al obtener tienda:", err);
-        res.status(500).json({ error: "Error al obtener tienda" });
-    }
+        res.status(200).json(results);
+    });
 });
+
+// // GET - Obtener una tienda por ID
+// app.get('/tienda/:id', async (req, res) => {
+//     const { id } = req.params;
+    
+//     try {
+//         const results = await promiseQuery('SELECT * FROM tienda WHERE ID_Usuario = ?', [id]);
+//         if (results.length > 0) {
+//             return res.status(200).json(results);
+//         }
+        
+//         const storeResult = await promiseQuery('SELECT * FROM tienda WHERE ID_Tienda = ?', [id]);
+//         if (storeResult.length === 0) {
+//             return res.status(404).json({ error: "Tienda no encontrada" });
+//         }
+        
+//         res.status(200).json(storeResult[0]);
+//     } catch (err) {
+//         console.error("Error al obtener tienda:", err);
+//         res.status(500).json({ error: "Error al obtener tienda" });
+//     }
+// });
 
 
 // PUT - Actualizar una tienda existente
